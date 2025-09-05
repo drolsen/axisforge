@@ -46,6 +46,11 @@ async function run() {
       name: 'hello-triangle',
       url: `http://localhost:${port}/examples/hello-triangle/`,
       golden: path.join(rootDir, 'examples/hello-triangle/golden.b64')
+    },
+    {
+      name: 'pbr-sponza',
+      url: `http://localhost:${port}/examples/pbr-sponza/`,
+      golden: path.join(rootDir, 'examples/pbr-sponza/golden.b64')
     }
   ];
 
@@ -85,7 +90,7 @@ async function run() {
     console.log(`${t.name}: ${(percent * 100).toFixed(2)}% diff`);
     if (percent > 0.02) {
       failed = true;
-      const diffPath = path.join(rootDir, 'examples/hello-triangle/diff.png');
+      const diffPath = path.join(rootDir, `examples/${t.name}/diff.png`);
       await sharp(diff, {
         raw: {
           width: goldenImg.info.width,
