@@ -25,6 +25,7 @@ const diff = './examples/hello-triangle/output.diff.png';
 async function main() {
   const browser = await chromium.launch({ args: ['--enable-unsafe-webgpu'] });
   const page = await browser.newPage();
+  await page.setViewportSize({ width: 256, height: 256 });
   await page.goto(url, { waitUntil: 'networkidle' });
   await page.waitForTimeout(300);
   const buf = await page.screenshot({ fullPage: false });
