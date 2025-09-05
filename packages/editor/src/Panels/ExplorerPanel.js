@@ -14,8 +14,14 @@ export default class ExplorerPanel {
   static createDefaultInstances() {
     return [
       new Instance('Workspace'),
-      new Instance('ServerScripts'),
-      new Instance('ClientScripts'),
+      new Instance('ServerScript', {
+        Source: "console.log('server script loaded')",
+        Kind: 'Server'
+      }),
+      new Instance('ClientScript', {
+        Source: "console.log('hello client')",
+        Kind: 'Client'
+      }),
       new Instance('SharedStorage')
     ];
   }
