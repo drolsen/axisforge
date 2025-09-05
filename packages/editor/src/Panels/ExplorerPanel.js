@@ -15,8 +15,14 @@ export default class ExplorerPanel {
     return [
       new Instance('Workspace'),
       new Instance('Cube', { CFrame: '0,0,0' }),
-      new Instance('ServerScripts'),
-      new Instance('ClientScripts'),
+      new Instance('ServerScript', {
+        Source: "console.log('server script loaded')",
+        Kind: 'Server'
+      }),
+      new Instance('ClientScript', {
+        Source: "console.log('hello client')",
+        Kind: 'Client'
+      }),
       new Instance('SharedStorage')
     ];
   }

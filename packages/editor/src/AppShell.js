@@ -3,6 +3,9 @@ import PropertiesPanel from './Panels/PropertiesPanel.js';
 import ViewportPanel from './Panels/ViewportPanel.js';
 import ConsolePanel from './Panels/ConsolePanel.js';
 import store from './EditorStore.js';
+import CodePanel from './Panels/CodePanel.js';
+import ScriptContext from '/packages/runtime-core/src/scripting/ScriptContext.js';
+
 
 /**
  * Editor application shell. Creates the primary dockable layout consisting of
@@ -63,6 +66,13 @@ export default class AppShell {
     this.bottomResizer.className = 'h-resizer';
     this.center.appendChild(this.bottomResizer);
 
+    // Code editor panel (fixed height)
+    this.codeEl = document.createElement('div');
+    this.codeEl.id = 'code';
+    this.codeEl.style.height = '120px';
+    this.codeEl.style.overflow = 'auto';
+    this.center.appendChild(this.codeEl);
+
     // Console panel
     this.consoleEl = document.createElement('div');
     this.consoleEl.id = 'console';
@@ -88,6 +98,8 @@ export default class AppShell {
     this.properties = new PropertiesPanel(this.propertiesEl);
     this.viewport = new ViewportPanel(this.viewportEl, instances);
     this.console = new ConsolePanel(this.consoleEl);
+    this.scriptContext = new ScriptContext();
+    this.codeEditor = new CodePanel(this.codeEl, this.scriptContext);
 
     // Selection hookup via store
     this.explorer.onSelect(instance => {
