@@ -51,6 +51,26 @@ async function run() {
       name: 'pbr-sponza',
       url: `http://localhost:${port}/examples/pbr-sponza/`,
       golden: path.join(rootDir, 'examples/pbr-sponza/golden.b64')
+    },
+    {
+      name: 'terrain-cdlod-0',
+      url: `http://localhost:${port}/examples/terrain-cdlod/?dist=10`,
+      golden: path.join(rootDir, 'examples/terrain-cdlod/golden-0.b64')
+    },
+    {
+      name: 'terrain-cdlod-1',
+      url: `http://localhost:${port}/examples/terrain-cdlod/?dist=40`,
+      golden: path.join(rootDir, 'examples/terrain-cdlod/golden-1.b64')
+    },
+    {
+      name: 'terrain-cdlod-2',
+      url: `http://localhost:${port}/examples/terrain-cdlod/?dist=160`,
+      golden: path.join(rootDir, 'examples/terrain-cdlod/golden-2.b64')
+    },
+    {
+      name: 'terrain-cdlod-3',
+      url: `http://localhost:${port}/examples/terrain-cdlod/?dist=400`,
+      golden: path.join(rootDir, 'examples/terrain-cdlod/golden-3.b64')
     }
   ];
 
