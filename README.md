@@ -71,8 +71,6 @@
       pixel-compare.mjs
     docs/               # generated autodocs
 
-> The directory tree above uses **indented code** (no nested Markdown fences) to remain copy/paste‑safe.
-
 ---
 
 ## 🔀 Branching Strategy
