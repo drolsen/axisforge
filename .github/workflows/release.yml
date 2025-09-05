@@ -15,6 +15,7 @@ jobs:
           node-version: 20.11
           cache: 'npm'
       - run: npm install
+      - run: npm playwright install
       - run: npm run build
       - uses: actions/upload-artifact@v4
         with:
