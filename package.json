@@ -28,5 +28,7 @@
     "typedoc": "^0.26.6",
     "@babel/parser": "^7.28.3"
   },
-  "dependencies": {}
+  "dependencies": {
+    "three": "^0.165.0"
+  }
 }

@@ -2,6 +2,7 @@ import ExplorerPanel from './Panels/ExplorerPanel.js';
 import PropertiesPanel from './Panels/PropertiesPanel.js';
 import ViewportPanel from './Panels/ViewportPanel.js';
 import ConsolePanel from './Panels/ConsolePanel.js';
+import store from './EditorStore.js';
 
 /**
  * Editor application shell. Creates the primary dockable layout consisting of
@@ -85,12 +86,16 @@ export default class AppShell {
     const instances = ExplorerPanel.createDefaultInstances();
     this.explorer = new ExplorerPanel(this.explorerEl, instances);
     this.properties = new PropertiesPanel(this.propertiesEl);
-    this.viewport = new ViewportPanel(this.viewportEl);
+    this.viewport = new ViewportPanel(this.viewportEl, instances);
     this.console = new ConsolePanel(this.consoleEl);
 
-    // Selection hookup
+    // Selection hookup via store
     this.explorer.onSelect(instance => {
-      this.properties.setInstance(instance);
+      store.setSelection(instance);
+    });
+    store.addEventListener('selection', e => {
+      this.properties.setInstance(e.detail);
+      this.viewport.setInstance(e.detail);
     });
 
     // Resizers
