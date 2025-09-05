@@ -46,6 +46,16 @@ async function run() {
       name: 'hello-triangle',
       url: `http://localhost:${port}/examples/hello-triangle/`,
       golden: path.join(rootDir, 'examples/hello-triangle/golden.b64')
+    },
+    {
+      name: 'shadows-vsm-hard',
+      url: `http://localhost:${port}/examples/shadows-vsm/?bias=0&blur=0`,
+      golden: path.join(rootDir, 'examples/shadows-vsm/hard.b64')
+    },
+    {
+      name: 'shadows-vsm-soft',
+      url: `http://localhost:${port}/examples/shadows-vsm/?bias=0.02&blur=4`,
+      golden: path.join(rootDir, 'examples/shadows-vsm/soft.b64')
     }
   ];
 
