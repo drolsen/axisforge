@@ -14,6 +14,7 @@ export default class ExplorerPanel {
   static createDefaultInstances() {
     return [
       new Instance('Workspace'),
+      new Instance('Cube', { CFrame: '0,0,0' }),
       new Instance('ServerScript', {
         Source: "console.log('server script loaded')",
         Kind: 'Server'

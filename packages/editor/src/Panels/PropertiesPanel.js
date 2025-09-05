@@ -41,6 +41,7 @@ export default class PropertiesPanel {
 
       const input = document.createElement('input');
       input.value = value;
+      input.name = key;
       input.style.flex = '1';
       input.addEventListener('input', () => {
         this.instance.setProperty(key, input.value);
