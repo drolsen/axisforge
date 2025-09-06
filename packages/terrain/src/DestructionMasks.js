@@ -3,6 +3,8 @@ export default class DestructionMasks {
     this.width = width;
     this.height = height;
     this.data = new Uint8ClampedArray(width * height * 4);
+    this.heightMap = new Float32Array(width * height);
+    this.deltaMap = new Float32Array(width * height);
   }
 
   // Fill entire mask with a color [r,g,b,a]
@@ -31,5 +33,49 @@ export default class DestructionMasks {
         }
       }
     }
+  }
+
+  // Apply circular crater to height and delta maps
+  applyCrater(x, y, radius, depth = 1) {
+    const r2 = radius * radius;
+    for (let j = 0; j < this.height; j++) {
+      for (let i = 0; i < this.width; i++) {
+        const dx = i - x;
+        const dy = j - y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 <= r2) {
+          const idx = j * this.width + i;
+          const dist = Math.sqrt(d2);
+          const falloff = 1 - dist / radius;
+          const delta = -depth * falloff;
+          this.deltaMap[idx] += delta;
+          this.heightMap[idx] += delta;
+        }
+      }
+    }
+  }
+
+  // Convert height map to grayscale ImageData for visualization
+  toImageData() {
+    let min = Infinity;
+    let max = -Infinity;
+    for (let i = 0; i < this.heightMap.length; i++) {
+      const v = this.heightMap[i];
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+    if (min === max) max = min + 1;
+    const range = max - min;
+    const img = new Uint8ClampedArray(this.width * this.height * 4);
+    for (let i = 0; i < this.heightMap.length; i++) {
+      const v = (this.heightMap[i] - min) / range;
+      const c = Math.max(0, Math.min(255, Math.round(v * 255)));
+      const idx = i * 4;
+      img[idx] = c;
+      img[idx + 1] = c;
+      img[idx + 2] = c;
+      img[idx + 3] = 255;
+    }
+    return new ImageData(img, this.width, this.height);
   }
 }
