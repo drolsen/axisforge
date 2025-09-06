@@ -1,9 +1,13 @@
+import EditOps from './EditOps.js';
+
 export default class ChunkStore {
   constructor({ chunkSize = 32 } = {}) {
     this.chunkSize = chunkSize;
     this.gridSize = chunkSize + 1;
     this.chunks = new Map();
     this.worker = null;
+    this.deltas = [];
+    this.editOps = new EditOps(this);
   }
 
   _ensureChunk(chunkId) {
@@ -15,43 +19,26 @@ export default class ChunkStore {
     return this.chunks.get(chunkId);
   }
 
-  applyEdit({ chunkId, op, shape, params = {} }) {
-    const chunk = this._ensureChunk(chunkId);
-    const N = this.gridSize;
-    const sdf = chunk.sdf;
-    const cs = this.chunkSize;
-    if (shape === 'cube') {
-      const { x = cs / 2, y = cs / 2, z = cs / 2, size = cs } = params;
-      for (let zz = 0; zz < N; zz++) {
-        for (let yy = 0; yy < N; yy++) {
-          for (let xx = 0; xx < N; xx++) {
-            const idx = xx + yy * N + zz * N * N;
-            const dx = Math.max(Math.abs(xx - x) - size / 2, 0);
-            const dy = Math.max(Math.abs(yy - y) - size / 2, 0);
-            const dz = Math.max(Math.abs(zz - z) - size / 2, 0);
-            const d = Math.hypot(dx, dy, dz);
-            if (op === 'add') sdf[idx] = Math.min(sdf[idx], d);
-            else sdf[idx] = Math.max(sdf[idx], -d);
-          }
-        }
-      }
-    } else if (shape === 'sphere') {
-      const { x = cs / 2, y = cs / 2, z = cs / 2, radius = cs / 4 } = params;
-      for (let zz = 0; zz < N; zz++) {
-        for (let yy = 0; yy < N; yy++) {
-          for (let xx = 0; xx < N; xx++) {
-            const idx = xx + yy * N + zz * N * N;
-            const dx = xx - x;
-            const dy = yy - y;
-            const dz = zz - z;
-            const d = Math.hypot(dx, dy, dz) - radius;
-            if (op === 'add') sdf[idx] = Math.min(sdf[idx], d);
-            else sdf[idx] = Math.max(sdf[idx], -d);
-          }
-        }
-      }
+  applyEdit({ op, shape, params = {} }) {
+    const affected = this.editOps.apply(op, shape, params);
+    this.deltas.push({ op, shape, params });
+    for (const id of affected) {
+      const chunk = this._ensureChunk(id);
+      chunk.mesh = null;
     }
-    chunk.mesh = null;
+    return affected;
+  }
+
+  saveDeltas() {
+    return JSON.stringify(this.deltas);
+  }
+
+  loadDeltas(json) {
+    const ops = typeof json === 'string' ? JSON.parse(json) : json;
+    this.deltas = Array.isArray(ops) ? ops : [];
+    for (const { op, shape, params } of this.deltas) {
+      this.editOps.apply(op, shape, params);
+    }
   }
 
   async getChunkMesh(chunkId) {
