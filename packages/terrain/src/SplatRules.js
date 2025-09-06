@@ -14,4 +14,19 @@ export default class SplatRules {
     }
     return null;
   }
+
+  // Serialize rules to JSON string
+  serialize() {
+    return JSON.stringify(this.rules);
+  }
+
+  // Deserialize from JSON string
+  static deserialize(json) {
+    try {
+      const rules = JSON.parse(json);
+      return new SplatRules(rules);
+    } catch (e) {
+      return new SplatRules();
+    }
+  }
 }
