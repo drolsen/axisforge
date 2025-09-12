@@ -1,0 +1,25 @@
+{
+  "name": "axisforge",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node editor/app/dev-server.js",
+    "build": "npm run prepare:dist && npm run pack",
+    "test": "ava",
+    "docs": "node tools/docs/generate.js",
+    "decode:b64": "node tools/b64-decode/decode.js",
+    "pack": "node tools/pack/build.js && node tools/pack/postbuild.js",
+    "prepare:dist": "rimraf dist && node tools/pack/copy-static.js",
+    "serve:dist": "node tools/pack/serve-dist.js"
+  },
+  "ava": {
+    "files": [
+      "tests/ava/**/*.test.js"
+    ]
+  },
+  "devDependencies": {
+    "ava": "^5.3.0",
+    "documentation": "^14.0.0",
+    "rimraf": "^5.0.0"
+  }
+}
