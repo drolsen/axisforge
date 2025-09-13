@@ -11,6 +11,6 @@ test('instances parent and child correctly', t => {
   const parent = new Instance('Parent');
   const child = new Instance('Child');
   parent.Add(child);
-  t.is(child.parent, parent);
-  t.true(parent.children.includes(child));
+  t.is(child.Parent, parent);
+  t.true(parent.Children.includes(child));
 });
