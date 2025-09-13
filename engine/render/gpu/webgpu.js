@@ -1,4 +1,8 @@
 import { GetService } from '../../core/index.js';
+import FrameGraph from '../framegraph/index.js';
+import ClearPass from '../passes/clearPass.js';
+import SkyPass from '../passes/skyPass.js';
+import MeshPass from '../passes/meshPass.js';
 
 export async function initWebGPU(canvas) {
   if (!navigator.gpu) {
@@ -11,6 +15,12 @@ export async function initWebGPU(canvas) {
   const format = navigator.gpu.getPreferredCanvasFormat();
   context.configure({ device, format });
 
+  const frameGraph = new FrameGraph(device, context);
+  frameGraph.addPass(new ClearPass(device));
+  frameGraph.addPass(new SkyPass(device, format));
+  frameGraph.addPass(new MeshPass(device, format));
+  await frameGraph.init();
+
   const runService = GetService('RunService');
 
   let last = performance.now() / 1000;
@@ -22,18 +32,15 @@ export async function initWebGPU(canvas) {
 
     runService._step(dt);
 
-    const encoder = device.createCommandEncoder();
-    const view = context.getCurrentTexture().createView();
-    const pass = encoder.beginRenderPass({
-      colorAttachments: [{
-        view,
-        clearValue: { r: 0.1, g: 0.1, b: 0.1, a: 1 },
-        loadOp: 'clear',
-        storeOp: 'store'
-      }]
-    });
-    pass.end();
-    device.queue.submit([encoder.finish()]);
+    const width = canvas.clientWidth * devicePixelRatio;
+    const height = canvas.clientHeight * devicePixelRatio;
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+      context.configure({ device, format });
+    }
+
+    frameGraph.render();
 
     runService._heartbeat(dt);
 
