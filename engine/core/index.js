@@ -1,4 +1,5 @@
 import Lighting from '../services/Lighting.js';
+import CollectionService from '../services/CollectionService.js';
 import { Signal } from './signal.js';
 import { isValidAttribute } from './types.js';
 
@@ -108,6 +109,10 @@ const Services = new Map();
 const lighting = new Instance('Lighting');
 Object.assign(lighting, new Lighting());
 Services.set('Lighting', lighting);
+
+const collectionService = new Instance('CollectionService');
+Object.assign(collectionService, new CollectionService());
+Services.set('CollectionService', collectionService);
 
 function GetService(name) {
   return Services.get(name);
