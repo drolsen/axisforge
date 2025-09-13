@@ -1,3 +1,5 @@
+import { GetService } from '../../core/index.js';
+
 export async function initWebGPU(canvas) {
   if (!navigator.gpu) {
     console.warn('WebGPU not supported');
@@ -9,7 +11,17 @@ export async function initWebGPU(canvas) {
   const format = navigator.gpu.getPreferredCanvasFormat();
   context.configure({ device, format });
 
-  function frame() {
+  const runService = GetService('RunService');
+
+  let last = performance.now() / 1000;
+
+  function frame(ts) {
+    const now = ts / 1000;
+    const dt = now - last;
+    last = now;
+
+    runService._step(dt);
+
     const encoder = device.createCommandEncoder();
     const view = context.getCurrentTexture().createView();
     const pass = encoder.beginRenderPass({
@@ -22,7 +34,11 @@ export async function initWebGPU(canvas) {
     });
     pass.end();
     device.queue.submit([encoder.finish()]);
+
+    runService._heartbeat(dt);
+
     requestAnimationFrame(frame);
   }
+
   requestAnimationFrame(frame);
 }
