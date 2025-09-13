@@ -1,6 +1,7 @@
 import Lighting from '../services/Lighting.js';
 import CollectionService from '../services/CollectionService.js';
 import TweenService from '../services/TweenService.js';
+import UserInputService from '../services/UserInputService.js';
 import { Signal } from './signal.js';
 import { isValidAttribute } from './types.js';
 
@@ -118,6 +119,23 @@ Services.set('CollectionService', collectionService);
 const tweenService = new Instance('TweenService');
 Object.assign(tweenService, new TweenService());
 Services.set('TweenService', tweenService);
+
+const userInputService = new Instance('UserInputService');
+const userInputImpl = new UserInputService();
+Object.assign(userInputService, userInputImpl);
+Object.defineProperty(userInputService, 'MouseBehavior', {
+  get: () => userInputImpl.MouseBehavior,
+  set: v => {
+    userInputImpl.MouseBehavior = v;
+  },
+});
+Object.defineProperty(userInputService, 'MouseDeltaSensitivity', {
+  get: () => userInputImpl.MouseDeltaSensitivity,
+  set: v => {
+    userInputImpl.MouseDeltaSensitivity = v;
+  },
+});
+Services.set('UserInputService', userInputService);
 
 function GetService(name) {
   return Services.get(name);
