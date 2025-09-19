@@ -7,6 +7,7 @@ import HDRTarget from '../post/hdr.js';
 import ACESPass from '../passes/acesPass.js';
 import FXAAPass from '../passes/fxaaPass.js';
 import Materials from '../materials/registry.js';
+import { setGPUAdapterName, updateFrameMetrics } from '../framegraph/stats.js';
 
 export async function initWebGPU(canvas) {
   if (!navigator.gpu) {
@@ -14,6 +15,11 @@ export async function initWebGPU(canvas) {
     return;
   }
   const adapter = await navigator.gpu.requestAdapter();
+  if (!adapter) {
+    console.warn('Failed to acquire GPU adapter');
+    return;
+  }
+  setGPUAdapterName(adapter.name || 'Unknown GPU');
   const device = await adapter.requestDevice();
   const context = canvas.getContext('webgpu');
   const format = navigator.gpu.getPreferredCanvasFormat();
@@ -44,6 +50,8 @@ export async function initWebGPU(canvas) {
     const now = ts / 1000;
     const dt = now - last;
     last = now;
+
+    updateFrameMetrics(dt);
 
     runService._step(dt);
 

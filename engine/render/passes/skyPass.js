@@ -1,3 +1,5 @@
+import { recordDrawCall } from '../framegraph/stats.js';
+
 export default class SkyPass {
   constructor(device, format, getView) {
     this.device = device;
@@ -76,6 +78,7 @@ fn fs(@location(0) uv : vec2f) -> @location(0) vec4f {
     });
     pass.setPipeline(this.pipeline);
     pass.draw(6, 1, 0, 0);
+    recordDrawCall(this.constructor.name);
     pass.end();
   }
 }

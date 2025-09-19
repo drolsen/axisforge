@@ -5,6 +5,7 @@ import GitPane from '../panes/git.js';
 import { initViewport } from '../services/viewport.js';
 import { checkForUpdates } from '../services/update-checker.js';
 import SettingsPane from '../panes/settings.js';
+import ProfilerPane from '../panes/profiler.js';
 import UndoService from '../services/undo.js';
 import { Selection } from '../services/selection.js';
 import TranslationGizmo from '../components/gizmos.js';
@@ -19,7 +20,8 @@ export function bootstrap() {
   initViewport();
   new ConsolePane();
   new GitPane();
-  new SettingsPane();
+  const profiler = new ProfilerPane();
+  new SettingsPane({ profiler });
   checkForUpdates();
 }
 

@@ -1,5 +1,6 @@
 import { FXAA_SHADER } from '../post/fxaa.js';
 import { PostFXSettings } from '../post/settings.js';
+import { recordDrawCall } from '../framegraph/stats.js';
 
 export default class FXAAPass {
   constructor(device, acesPass, outputFormat) {
@@ -107,6 +108,7 @@ export default class FXAAPass {
     pass.setPipeline(this.pipeline);
     pass.setBindGroup(0, this.bindGroup);
     pass.draw(3, 1, 0, 0);
+    recordDrawCall(this.constructor.name);
     pass.end();
   }
 }

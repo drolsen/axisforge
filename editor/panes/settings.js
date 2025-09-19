@@ -1,7 +1,7 @@
 import { PostFXSettings } from '../../engine/render/post/settings.js';
 
 export default class SettingsPane {
-  constructor() {
+  constructor({ profiler } = {}) {
     this.root = document.createElement('div');
     this.root.id = 'settings-pane';
     this.root.style.position = 'fixed';
@@ -16,19 +16,43 @@ export default class SettingsPane {
     this.root.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.3)';
     this.root.style.minWidth = '160px';
 
-    const title = document.createElement('div');
-    title.textContent = 'Post FX';
-    title.style.fontWeight = 'bold';
-    title.style.marginBottom = '8px';
-    this.root.appendChild(title);
+    this.root.appendChild(this._createSectionTitle('Post FX'));
+    this.root.appendChild(this._createToggle('ACES Tonemap', {
+      initial: Boolean(PostFXSettings.acesTonemap),
+      onChange: value => {
+        PostFXSettings.acesTonemap = value;
+      },
+    }));
+    this.root.appendChild(this._createToggle('FXAA', {
+      initial: Boolean(PostFXSettings.fxaa),
+      onChange: value => {
+        PostFXSettings.fxaa = value;
+      },
+    }));
 
-    this.root.appendChild(this._createToggle('ACES Tonemap', 'acesTonemap'));
-    this.root.appendChild(this._createToggle('FXAA', 'fxaa'));
+    if (profiler) {
+      this.root.appendChild(this._createSectionTitle('Diagnostics'));
+      this.root.appendChild(this._createToggle('Show Profiler', {
+        initial: profiler.isVisible(),
+        onChange: value => profiler.setVisible(value),
+      }));
+    }
 
     document.body.appendChild(this.root);
   }
 
-  _createToggle(labelText, key) {
+  _createSectionTitle(text) {
+    const title = document.createElement('div');
+    title.textContent = text;
+    title.style.fontWeight = 'bold';
+    title.style.marginBottom = '8px';
+    if (this.root.children.length > 0) {
+      title.style.marginTop = '12px';
+    }
+    return title;
+  }
+
+  _createToggle(labelText, { initial = false, onChange } = {}) {
     const container = document.createElement('label');
     container.style.display = 'flex';
     container.style.alignItems = 'center';
@@ -38,10 +62,12 @@ export default class SettingsPane {
 
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
-    checkbox.checked = Boolean(PostFXSettings[key]);
-    checkbox.addEventListener('change', () => {
-      PostFXSettings[key] = checkbox.checked;
-    });
+    checkbox.checked = Boolean(initial);
+    if (typeof onChange === 'function') {
+      checkbox.addEventListener('change', () => {
+        onChange(checkbox.checked);
+      });
+    }
 
     const label = document.createElement('span');
     label.textContent = labelText;
