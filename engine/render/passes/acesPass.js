@@ -1,5 +1,6 @@
 import { ACES_SHADER } from '../post/aces.js';
 import { PostFXSettings } from '../post/settings.js';
+import { recordDrawCall } from '../framegraph/stats.js';
 
 export default class ACESPass {
   constructor(device, hdrTarget, outputFormat = 'rgba16float') {
@@ -112,6 +113,7 @@ export default class ACESPass {
     pass.setPipeline(this.pipeline);
     pass.setBindGroup(0, this.bindGroup);
     pass.draw(3, 1, 0, 0);
+    recordDrawCall(this.constructor.name);
     pass.end();
   }
 }

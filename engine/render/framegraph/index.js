@@ -1,3 +1,5 @@
+import { beginFrame, endFrame, markPass } from './stats.js';
+
 export default class FrameGraph {
   constructor(device, context) {
     this.device = device;
@@ -18,13 +20,19 @@ export default class FrameGraph {
   }
 
   render() {
+    beginFrame();
     const encoder = this.device.createCommandEncoder();
     const swapChainView = this.context.getCurrentTexture().createView();
     const context = { swapChainView };
     for (const pass of this.passes) {
+      const passName = typeof pass.getName === 'function'
+        ? pass.getName()
+        : (pass.name || (pass.constructor && pass.constructor.name) || 'Pass');
+      markPass(passName);
       pass.execute(encoder, context);
     }
     this.device.queue.submit([encoder.finish()]);
+    endFrame();
   }
 }
 

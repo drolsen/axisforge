@@ -1,3 +1,5 @@
+import { recordDrawCall } from '../framegraph/stats.js';
+
 export default class MeshPass {
   constructor(device, format, getView) {
     this.device = device;
@@ -82,6 +84,7 @@ fn fs(@location(0) color : vec3f) -> @location(0) vec4f {
     pass.setPipeline(this.pipeline);
     pass.setVertexBuffer(0, this.vertexBuffer);
     pass.draw(3, 1, 0, 0);
+    recordDrawCall(this.constructor.name);
     pass.end();
   }
 }
