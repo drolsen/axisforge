@@ -1,7 +1,8 @@
 export default class SkyPass {
-  constructor(device, format) {
+  constructor(device, format, getView) {
     this.device = device;
     this.format = format;
+    this.getView = getView;
     this.pipeline = null;
   }
 
@@ -59,7 +60,11 @@ fn fs(@location(0) uv : vec2f) -> @location(0) vec4f {
     });
   }
 
-  execute(encoder, view) {
+  execute(encoder) {
+    const view = this.getView ? this.getView() : null;
+    if (!view) {
+      return;
+    }
     const pass = encoder.beginRenderPass({
       colorAttachments: [
         {
