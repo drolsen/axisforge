@@ -3,6 +3,7 @@ import FrameGraph from '../framegraph/index.js';
 import ClearPass from '../passes/clearPass.js';
 import SkyPass from '../passes/skyPass.js';
 import MeshPass from '../passes/meshPass.js';
+import Materials from '../materials/registry.js';
 
 export async function initWebGPU(canvas) {
   if (!navigator.gpu) {
@@ -14,6 +15,8 @@ export async function initWebGPU(canvas) {
   const context = canvas.getContext('webgpu');
   const format = navigator.gpu.getPreferredCanvasFormat();
   context.configure({ device, format });
+
+  Materials.init(device);
 
   const frameGraph = new FrameGraph(device, context);
   frameGraph.addPass(new ClearPass(device));
