@@ -3,6 +3,7 @@ import CollectionService from '../services/CollectionService.js';
 import TweenService from '../services/TweenService.js';
 import UserInputService from '../services/UserInputService.js';
 import RunService from '../services/RunService.js';
+import PhysicsService from '../services/PhysicsService.js';
 import { Signal } from './signal.js';
 import { isValidAttribute } from './types.js';
 
@@ -141,6 +142,10 @@ Services.set('UserInputService', userInputService);
 const runService = new Instance('RunService');
 Object.assign(runService, new RunService());
 Services.set('RunService', runService);
+
+const physicsService = new Instance('PhysicsService');
+Object.assign(physicsService, new PhysicsService());
+Services.set('PhysicsService', physicsService);
 
 function GetService(name) {
   return Services.get(name);
