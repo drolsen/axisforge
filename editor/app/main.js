@@ -5,10 +5,17 @@ import GitPane from '../panes/git.js';
 import { initViewport } from '../services/viewport.js';
 import { checkForUpdates } from '../services/update-checker.js';
 import SettingsPane from '../panes/settings.js';
+import UndoService from '../services/undo.js';
+import { Selection } from '../services/selection.js';
+import TranslationGizmo from '../components/gizmos.js';
 
 export function bootstrap() {
-  new Explorer();
-  new Properties();
+  const undo = new UndoService();
+  const selection = new Selection();
+
+  new Explorer(undo, selection);
+  new Properties(undo, selection);
+  new TranslationGizmo(selection, undo);
   initViewport();
   new ConsolePane();
   new GitPane();
