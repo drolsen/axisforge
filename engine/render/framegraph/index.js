@@ -19,9 +19,10 @@ export default class FrameGraph {
 
   render() {
     const encoder = this.device.createCommandEncoder();
-    const view = this.context.getCurrentTexture().createView();
+    const swapChainView = this.context.getCurrentTexture().createView();
+    const context = { swapChainView };
     for (const pass of this.passes) {
-      pass.execute(encoder, view);
+      pass.execute(encoder, context);
     }
     this.device.queue.submit([encoder.finish()]);
   }

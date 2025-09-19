@@ -3,6 +3,9 @@ import FrameGraph from '../framegraph/index.js';
 import ClearPass from '../passes/clearPass.js';
 import SkyPass from '../passes/skyPass.js';
 import MeshPass from '../passes/meshPass.js';
+import HDRTarget from '../post/hdr.js';
+import ACESPass from '../passes/acesPass.js';
+import FXAAPass from '../passes/fxaaPass.js';
 import Materials from '../materials/registry.js';
 
 export async function initWebGPU(canvas) {
@@ -18,10 +21,19 @@ export async function initWebGPU(canvas) {
 
   Materials.init(device);
 
+  const hdrTarget = new HDRTarget(device);
   const frameGraph = new FrameGraph(device, context);
-  frameGraph.addPass(new ClearPass(device));
-  frameGraph.addPass(new SkyPass(device, format));
-  frameGraph.addPass(new MeshPass(device, format));
+  const clearPass = new ClearPass(device, () => hdrTarget.getView());
+  const skyPass = new SkyPass(device, 'rgba16float', () => hdrTarget.getView());
+  const meshPass = new MeshPass(device, 'rgba16float', () => hdrTarget.getView());
+  const acesPass = new ACESPass(device, hdrTarget, 'rgba16float');
+  const fxaaPass = new FXAAPass(device, acesPass, format);
+
+  frameGraph.addPass(clearPass);
+  frameGraph.addPass(skyPass);
+  frameGraph.addPass(meshPass);
+  frameGraph.addPass(acesPass);
+  frameGraph.addPass(fxaaPass);
   await frameGraph.init();
 
   const runService = GetService('RunService');
@@ -41,6 +53,16 @@ export async function initWebGPU(canvas) {
       canvas.width = width;
       canvas.height = height;
       context.configure({ device, format });
+    }
+
+    const hdrChanged = hdrTarget.resize(width, height);
+    const acesChanged = acesPass.resize(width, height);
+    fxaaPass.resize(width, height);
+    if (hdrChanged) {
+      acesPass.bindGroupDirty = true;
+    }
+    if (acesChanged || hdrChanged) {
+      fxaaPass.bindGroupDirty = true;
     }
 
     frameGraph.render();
