@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "node editor/app/dev-server.js",
+    "dev": "node tools/dev-server.js",
     "build": "npm run prepare:dist && npm run pack",
     "test": "ava",
     "docs": "node tools/docs/generate.js",

@@ -3,11 +3,7 @@ import path from 'path';
 import { rimraf } from 'rimraf';
 
 const destDir = path.resolve('dist');
-const sources = [
-  { src: path.resolve('public'), dest: destDir },
-  { src: path.resolve('editor'), dest: path.join(destDir, 'editor') },
-  { src: path.resolve('engine'), dest: path.join(destDir, 'engine') },
-];
+const sources = [{ src: path.resolve('public'), dest: destDir }];
 
 function sanitizeRelative(base, target) {
   const relative = path.relative(base, target);
