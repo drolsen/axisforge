@@ -1,5 +1,6 @@
 import { Instance } from '../../core/index.js';
 import drawList from './drawList.js';
+import { transformAABB } from '../scene/culling.js';
 import {
   computeNormalMatrix,
   mat4FromRotationTranslationScale,
@@ -28,6 +29,16 @@ function cloneScale(value = {}) {
 
 function toArray(vec) {
   return [vec.x, vec.y, vec.z];
+}
+
+function cloneBounds(bounds) {
+  if (!bounds) {
+    return null;
+  }
+  return {
+    min: [...bounds.min],
+    max: [...bounds.max],
+  };
 }
 
 class TransformNode extends Instance {
@@ -159,6 +170,9 @@ class MeshInstance extends TransformNode {
     this._bindGroup = null;
     this._bindGroupLayout = null;
     this._uniformDirty = true;
+    this._localBounds = null;
+    this._worldBounds = null;
+    this._worldBoundsDirty = true;
 
     this.setMesh(mesh, materials);
     drawList.register(this);
@@ -167,6 +181,11 @@ class MeshInstance extends TransformNode {
   setMesh(mesh, materials = null) {
     this.mesh = mesh;
     this.materials = [];
+    this._localBounds = mesh?.bounds ? cloneBounds(mesh.bounds) : null;
+    if (!this._localBounds) {
+      this._worldBounds = null;
+    }
+    this._worldBoundsDirty = true;
     if (mesh && Array.isArray(mesh.primitives)) {
       this.materials = mesh.primitives.map((primitive, index) => {
         if (Array.isArray(materials) && materials[index] != null) {
@@ -200,12 +219,35 @@ class MeshInstance extends TransformNode {
 
   markWorldDirty() {
     this._uniformDirty = true;
+    this._worldBoundsDirty = true;
     drawList.markDirty();
     super.markWorldDirty();
   }
 
   isRenderable() {
     return this.mesh !== null && super.isRenderable();
+  }
+
+  getLocalBounds() {
+    return this._localBounds;
+  }
+
+  getWorldBounds() {
+    if (!this._localBounds) {
+      return null;
+    }
+    const worldMatrix = this.getWorldMatrix();
+    if (!this._worldBounds) {
+      this._worldBounds = {
+        min: [0, 0, 0],
+        max: [0, 0, 0],
+      };
+    }
+    if (this._worldBoundsDirty) {
+      transformAABB(worldMatrix, this._localBounds, this._worldBounds);
+      this._worldBoundsDirty = false;
+    }
+    return this._worldBounds;
   }
 
   _ensureUniformBuffer(device) {

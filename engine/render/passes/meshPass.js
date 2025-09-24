@@ -1,10 +1,10 @@
 import { recordDrawCall } from '../framegraph/stats.js';
-import drawList from '../mesh/drawList.js';
 import Materials from '../materials/registry.js';
 import { VERTEX_STRIDE } from '../mesh/mesh.js';
 import { lookAt, perspective, mat4Multiply, addVec3 } from '../mesh/math.js';
 import { GetService } from '../../core/index.js';
 import { getActiveCamera, getGridFade } from '../camera/manager.js';
+import renderList from '../scene/renderList.js';
 
 const FLOAT_SIZE = 4;
 const MAX_CASCADES = 4;
@@ -579,9 +579,9 @@ export default class MeshPass {
     this._ensureDepthTexture(width, height);
     const cameraInfo = this._updateSceneUniform(width, height);
 
-    const instances = drawList.getInstances();
+    const visibleInstances = renderList.update(cameraInfo);
     const shouldDrawGrid = this.gridPipeline && getGridFade() > 0.001;
-    if (!instances.length && !shouldDrawGrid) {
+    if (!visibleInstances.length && !shouldDrawGrid) {
       return;
     }
 
@@ -605,11 +605,11 @@ export default class MeshPass {
       this._drawGrid(pass, cameraInfo);
     }
 
-    if (instances.length) {
+    if (visibleInstances.length) {
       pass.setPipeline(this.pipeline);
       pass.setBindGroup(0, this.sceneBindGroup);
 
-      for (const instance of instances) {
+      for (const instance of visibleInstances) {
         if (!instance.mesh) {
           continue;
         }
