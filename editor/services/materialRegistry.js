@@ -291,6 +291,12 @@ class EditorMaterialRegistry {
       logicalPath: asset.logicalPath,
     });
 
+    Materials.rememberTextureAsset(materialId, slot.key, {
+      guid: asset.guid,
+      name: asset.name,
+      logicalPath: asset.logicalPath,
+    });
+
     this.updateMaterial(materialId, params);
   }
 
@@ -312,6 +318,7 @@ class EditorMaterialRegistry {
       store.delete(slot.key);
     }
     this._rememberAssignment(materialId, slot.key, null);
+    Materials.rememberTextureAsset(materialId, slot.key, null);
     this.updateMaterial(materialId, {
       [slot.paramTexture]: null,
       [slot.paramSampler]: null,
