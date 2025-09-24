@@ -4,6 +4,8 @@ import Mesh from '../../render/mesh/mesh.js';
 import MeshInstance, { TransformNode } from '../../render/mesh/meshInstance.js';
 import Materials from '../../render/materials/registry.js';
 import { getDevice } from '../../render/gpu/device.js';
+import { createTextureFromImage } from '../../render/textures/loader.js';
+import { getDefaultAnisotropicSampler, getOrCreateSampler } from '../../render/textures/sampler.js';
 import {
   quaternionNormalize,
   decomposeTRS,
@@ -142,13 +144,7 @@ function convertMinFilter(filter) {
 function getSampler(device, gltf, samplerCache, samplerIndex) {
   if (typeof samplerIndex !== 'number') {
     if (!samplerCache.has('default')) {
-      samplerCache.set('default', device.createSampler({
-        addressModeU: 'repeat',
-        addressModeV: 'repeat',
-        magFilter: 'linear',
-        minFilter: 'linear',
-        mipmapFilter: 'linear',
-      }));
+      samplerCache.set('default', getDefaultAnisotropicSampler(device));
     }
     return samplerCache.get('default');
   }
@@ -157,30 +153,16 @@ function getSampler(device, gltf, samplerCache, samplerIndex) {
   }
   const samplerDef = gltf.samplers?.[samplerIndex] || {};
   const { minFilter, mipmapFilter } = convertMinFilter(samplerDef.minFilter);
-  const sampler = device.createSampler({
+  const descriptor = {
     addressModeU: convertWrap(samplerDef.wrapS),
     addressModeV: convertWrap(samplerDef.wrapT),
     magFilter: convertMagFilter(samplerDef.magFilter),
     minFilter,
     mipmapFilter,
-  });
+  };
+  const sampler = getOrCreateSampler(device, descriptor);
   samplerCache.set(samplerIndex, sampler);
   return sampler;
-}
-
-function createTextureView(device, image, srgb) {
-  const format = srgb ? 'rgba8unorm-srgb' : 'rgba8unorm';
-  const texture = device.createTexture({
-    size: { width: image.width, height: image.height, depthOrArrayLayers: 1 },
-    format,
-    usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
-  });
-  device.queue.copyExternalImageToTexture(
-    { source: image },
-    { texture },
-    [image.width, image.height],
-  );
-  return texture.createView();
 }
 
 function getTextureResource(device, gltf, textureIndex, images, samplerCache, textureCache, slot) {
@@ -188,8 +170,8 @@ function getTextureResource(device, gltf, textureIndex, images, samplerCache, te
     return { texture: null, sampler: null };
   }
   const key = `${textureIndex}:${slot}`;
-  let view = textureCache.get(key);
-  if (!view) {
+  let resource = textureCache.get(key);
+  if (!resource) {
     const textureDef = gltf.textures?.[textureIndex];
     if (!textureDef || typeof textureDef.source !== 'number') {
       return { texture: null, sampler: null };
@@ -199,12 +181,17 @@ function getTextureResource(device, gltf, textureIndex, images, samplerCache, te
       return { texture: null, sampler: null };
     }
     const srgb = isSRGBTextureSlot(slot);
-    view = createTextureView(device, image, srgb);
-    textureCache.set(key, view);
+    const created = createTextureFromImage(device, image, {
+      label: `glTFTexture:${slot}:${textureIndex}`,
+      srgb,
+      generateMipmaps: true,
+    });
+    resource = { texture: created.texture, view: created.view };
+    textureCache.set(key, resource);
   }
   const textureDef = gltf.textures?.[textureIndex];
   const sampler = getSampler(device, gltf, samplerCache, textureDef?.sampler);
-  return { texture: view, sampler };
+  return { texture: resource.view, sampler };
 }
 
 function createMaterial(device, gltf, materialIndex, images, samplerCache, textureCache) {
