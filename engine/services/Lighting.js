@@ -42,6 +42,18 @@ export default class Lighting {
     };
   }
 
+  getCameraState() {
+    return {
+      position: [...this._camera.position],
+      direction: [...this._camera.direction],
+      up: [...this._camera.up],
+      near: this._camera.near,
+      far: this._camera.far,
+      fov: this._camera.fov,
+      aspect: this._camera.aspect,
+    };
+  }
+
   update() {
     if (!this.enabled) {
       return;

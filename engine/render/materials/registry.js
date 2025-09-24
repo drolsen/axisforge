@@ -4,7 +4,8 @@ import {
   updateStandardPBRUniform,
   createStandardPBRLayout,
   describeStandardPBRBindings,
-  createStandardPBRBindGroup
+  createStandardPBRBindGroup,
+  STANDARD_PBR_BINDINGS
 } from './ubos.js';
 
 class MaterialRegistry {
@@ -13,6 +14,8 @@ class MaterialRegistry {
     this.layouts = new Map();
     this.materials = new Map();
     this.nextId = 1;
+    this.defaults = new Map();
+    this._defaultTextures = [];
   }
 
   init(device) {
@@ -20,11 +23,13 @@ class MaterialRegistry {
       console.warn('[Materials] Reinitializing registry with a new device. Existing materials will be cleared.');
       this.materials.clear();
       this.nextId = 1;
+      this._disposeDefaults();
     }
     if (!this.device || this.device !== device) {
       this.device = device;
       if (device) {
         this.layouts.set('StandardPBR', createStandardPBRLayout(device));
+        this._createDefaults();
       }
     }
   }
@@ -38,8 +43,68 @@ class MaterialRegistry {
   _buildStandardBinding(material, uniform) {
     const layout = this.layouts.get('StandardPBR');
     const descriptor = describeStandardPBRBindings(material, uniform);
-    const bindGroup = createStandardPBRBindGroup(this.device, layout, descriptor);
+    const bindGroup = createStandardPBRBindGroup(this.device, layout, descriptor, this.defaults);
     return { layout, descriptor, bindGroup };
+  }
+
+  _disposeDefaults() {
+    for (const texture of this._defaultTextures) {
+      try {
+        texture.destroy();
+      } catch {
+        // Ignore
+      }
+    }
+    this._defaultTextures = [];
+    this.defaults.clear();
+  }
+
+  _createSolidTexture(color, format) {
+    const data = new Uint8Array(color);
+    const texture = this.device.createTexture({
+      size: { width: 1, height: 1, depthOrArrayLayers: 1 },
+      format,
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+    });
+    this.device.queue.writeTexture(
+      { texture },
+      data,
+      { bytesPerRow: 4 },
+      { width: 1, height: 1, depthOrArrayLayers: 1 },
+    );
+    this._defaultTextures.push(texture);
+    return texture.createView();
+  }
+
+  _createDefaults() {
+    this._disposeDefaults();
+    if (!this.device) {
+      return;
+    }
+    const whiteSRGB = this._createSolidTexture([255, 255, 255, 255], 'rgba8unorm-srgb');
+    const whiteLinear = this._createSolidTexture([255, 255, 255, 255], 'rgba8unorm');
+    const normalDefault = this._createSolidTexture([128, 128, 255, 255], 'rgba8unorm');
+    const blackSRGB = this._createSolidTexture([0, 0, 0, 255], 'rgba8unorm-srgb');
+    const sampler = this.device.createSampler({
+      addressModeU: 'repeat',
+      addressModeV: 'repeat',
+      magFilter: 'linear',
+      minFilter: 'linear',
+      mipmapFilter: 'linear',
+    });
+
+    const bindings = STANDARD_PBR_BINDINGS;
+    this.defaults.set(bindings.ALBEDO_TEXTURE, whiteSRGB);
+    this.defaults.set(bindings.METALLIC_ROUGHNESS_TEXTURE, whiteLinear);
+    this.defaults.set(bindings.NORMAL_TEXTURE, normalDefault);
+    this.defaults.set(bindings.OCCLUSION_TEXTURE, whiteLinear);
+    this.defaults.set(bindings.EMISSIVE_TEXTURE, blackSRGB);
+
+    this.defaults.set(bindings.ALBEDO_SAMPLER, sampler);
+    this.defaults.set(bindings.METALLIC_ROUGHNESS_SAMPLER, sampler);
+    this.defaults.set(bindings.NORMAL_SAMPLER, sampler);
+    this.defaults.set(bindings.OCCLUSION_SAMPLER, sampler);
+    this.defaults.set(bindings.EMISSIVE_SAMPLER, sampler);
   }
 
   _logRecord(action, record) {
@@ -52,6 +117,8 @@ class MaterialRegistry {
       color: Array.from(material.color),
       roughness: material.roughness,
       metalness: material.metalness,
+      emissive: Array.from(material.emissive.slice(0, 3)),
+      occlusionStrength: material.occlusionStrength,
       bindings: bindingStates
     });
   }
@@ -81,6 +148,10 @@ class MaterialRegistry {
     updateStandardPBRUniform(this.device, record.uniform, record.material);
     record.binding = this._buildStandardBinding(record.material, record.uniform);
     this._logRecord('Updated', record);
+  }
+
+  getLayout(type) {
+    return this.layouts.get(type) || null;
   }
 }
 
