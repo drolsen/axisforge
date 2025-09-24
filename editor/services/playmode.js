@@ -1,10 +1,57 @@
-import { RunService } from "../../engine/services/RunService.js";
 import { GetService } from "../../engine/core/index.js";
+import Camera from "../../engine/render/camera/camera.js";
+import { FirstPersonController } from "../../engine/render/camera/controllers.js";
+import { getActiveCamera, getGridEnabled, setActiveCamera, setGridEnabled } from "../../engine/render/camera/manager.js";
+import { getCameraSettings, restoreEditorCamera } from "./cameraEditor.js";
 
 const DEFAULT_ENTRY = "/game/main.client.js";
 
 let playing = false;
 let currentModule = null;
+let runtimeCamera = null;
+let runtimeController = null;
+let savedCamera = null;
+let savedGridVisible = true;
+
+function setupRuntimeCamera() {
+  const UIS = GetService("UserInputService");
+  const settings = getCameraSettings();
+  savedCamera = getActiveCamera();
+  savedGridVisible = getGridEnabled();
+
+  runtimeCamera = savedCamera ? savedCamera.clone() : new Camera({
+    position: [0, 2, 6],
+    target: [0, 1, 0],
+    near: 0.1,
+    far: 500,
+    fov: Math.PI / 3,
+  });
+  setActiveCamera(runtimeCamera);
+  setGridEnabled(false);
+
+  runtimeController = new FirstPersonController(runtimeCamera, UIS, {
+    moveSpeed: settings.flySpeed,
+    fastMultiplier: settings.fastMultiplier,
+    lookSensitivity: settings.mouseSensitivity,
+    invertY: settings.invertY,
+  });
+  runtimeController.setEnabled(true);
+}
+
+function teardownRuntimeCamera() {
+  if (runtimeController) {
+    runtimeController.dispose();
+    runtimeController = null;
+  }
+  runtimeCamera = null;
+  setGridEnabled(savedGridVisible);
+  if (savedCamera) {
+    setActiveCamera(savedCamera);
+  } else {
+    restoreEditorCamera();
+  }
+  savedCamera = null;
+}
 
 async function loadClientModule(entryUrl = DEFAULT_ENTRY) {
   const url = `${entryUrl}?t=${Date.now()}`; // cache-bust on each Play
@@ -25,6 +72,7 @@ export async function startPlay(entryUrl = DEFAULT_ENTRY) {
   // TODO: clone editor scene graph into an isolated play graph here.
 
   try {
+    setupRuntimeCamera();
     currentModule = await loadClientModule(entryUrl);
     if (typeof currentModule.start === "function") {
       await currentModule.start();
@@ -33,6 +81,7 @@ export async function startPlay(entryUrl = DEFAULT_ENTRY) {
   } catch (err) {
     console.error("[PLAY] Failed to load", entryUrl, err);
     playing = false;
+    teardownRuntimeCamera();
   }
 }
 
@@ -49,5 +98,6 @@ export async function stopPlay() {
   // TODO: teardown play graph, restore editor state.
   currentModule = null;
   playing = false;
+  teardownRuntimeCamera();
   console.log(" [PLAY] Stopped.");
 }
