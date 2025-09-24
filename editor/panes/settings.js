@@ -29,6 +29,38 @@ export default class SettingsPane {
         PostFXSettings.fxaa = value;
       },
     }));
+    this.root.appendChild(this._createToggle('SSAO', {
+      initial: Boolean(PostFXSettings.ssao),
+      onChange: value => {
+        PostFXSettings.ssao = value;
+      },
+    }));
+    this.root.appendChild(this._createSlider('SSAO Radius', {
+      min: 0.05,
+      max: 2.0,
+      step: 0.05,
+      initial: Number(PostFXSettings.ssaoRadius) || 0.5,
+      format: value => value.toFixed(2),
+      onChange: value => {
+        PostFXSettings.ssaoRadius = value;
+      },
+    }));
+    this.root.appendChild(this._createSlider('SSAO Intensity', {
+      min: 0.1,
+      max: 4.0,
+      step: 0.1,
+      initial: Number(PostFXSettings.ssaoIntensity) || 1.0,
+      format: value => value.toFixed(2),
+      onChange: value => {
+        PostFXSettings.ssaoIntensity = value;
+      },
+    }));
+    this.root.appendChild(this._createToggle('SSAO High Quality', {
+      initial: Boolean(PostFXSettings.ssaoHighQuality),
+      onChange: value => {
+        PostFXSettings.ssaoHighQuality = value;
+      },
+    }));
 
     if (profiler) {
       this.root.appendChild(this._createSectionTitle('Diagnostics'));
@@ -74,6 +106,58 @@ export default class SettingsPane {
 
     container.appendChild(checkbox);
     container.appendChild(label);
+    return container;
+  }
+
+  _createSlider(labelText, {
+    min = 0,
+    max = 1,
+    step = 0.1,
+    initial = 0,
+    format = value => value.toFixed(2),
+    onChange,
+  } = {}) {
+    const container = document.createElement('div');
+    container.style.display = 'flex';
+    container.style.flexDirection = 'column';
+    container.style.gap = '4px';
+    container.style.marginBottom = '8px';
+
+    const header = document.createElement('div');
+    header.style.display = 'flex';
+    header.style.justifyContent = 'space-between';
+    header.style.alignItems = 'center';
+
+    const label = document.createElement('span');
+    label.textContent = labelText;
+
+    const valueLabel = document.createElement('span');
+    valueLabel.textContent = format(initial);
+
+    header.appendChild(label);
+    header.appendChild(valueLabel);
+
+    const input = document.createElement('input');
+    input.type = 'range';
+    input.min = String(min);
+    input.max = String(max);
+    input.step = String(step);
+    input.value = String(initial);
+
+    const updateValue = () => {
+      const parsed = Number(input.value);
+      const clamped = Math.min(max, Math.max(min, parsed));
+      valueLabel.textContent = format(clamped);
+      if (typeof onChange === 'function') {
+        onChange(clamped);
+      }
+    };
+
+    input.addEventListener('input', updateValue);
+    updateValue();
+
+    container.appendChild(header);
+    container.appendChild(input);
     return container;
   }
 }

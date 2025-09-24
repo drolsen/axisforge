@@ -87,11 +87,13 @@ fn fs(@location(0) world : vec3f) -> @location(0) vec4f {
 }`;
 
 export default class MeshPass {
-  constructor(device, format, getView, getSize) {
+  constructor(device, format, getView, getSize, getDepthView = null, getSSAOResources = null) {
     this.device = device;
     this.format = format;
     this.getView = getView;
     this.getSize = getSize;
+    this.getDepthView = getDepthView;
+    this.getSSAOResources = getSSAOResources;
 
     this.pipeline = null;
     this.sceneBuffer = null;
@@ -106,6 +108,12 @@ export default class MeshPass {
     this.defaultShadowTexture = null;
     this.defaultShadowView = null;
     this.defaultShadowSampler = null;
+
+    this.defaultAOTexture = null;
+    this.defaultAOView = null;
+    this.defaultAOSampler = null;
+    this.ssaoView = null;
+    this.ssaoSampler = null;
 
     this.gridPipeline = null;
     this.gridLayout = null;
@@ -143,6 +151,7 @@ export default class MeshPass {
     });
 
     this._createDefaultShadowResources();
+    this._createDefaultAOResources();
 
     this.sceneLayout = this.device.createBindGroupLayout({
       label: 'MeshPassSceneLayout',
@@ -150,6 +159,8 @@ export default class MeshPass {
         { binding: 0, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
         { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'depth', viewDimension: '2d-array' } },
         { binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'comparison' } },
+        { binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
+        { binding: 4, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
       ],
     });
 
@@ -167,10 +178,14 @@ export default class MeshPass {
         { binding: 0, resource: { buffer: this.sceneBuffer } },
         { binding: 1, resource: this.defaultShadowView },
         { binding: 2, resource: this.defaultShadowSampler },
+        { binding: 3, resource: this.defaultAOView },
+        { binding: 4, resource: this.defaultAOSampler },
       ],
     });
     this.shadowMapView = this.defaultShadowView;
     this.shadowSampler = this.defaultShadowSampler;
+    this.ssaoView = this.defaultAOView;
+    this.ssaoSampler = this.defaultAOSampler;
     this.sceneBindGroupDirty = false;
 
     const materialLayout = Materials.getLayout('StandardPBR');
@@ -214,7 +229,7 @@ export default class MeshPass {
       depthStencil: {
         format: this.depthFormat,
         depthWriteEnabled: true,
-        depthCompare: 'less',
+        depthCompare: 'less-equal',
       },
     });
 
@@ -241,6 +256,36 @@ export default class MeshPass {
     this.defaultShadowSampler = this.device.createSampler({
       label: 'MeshPassShadowFallbackSampler',
       compare: 'less-equal',
+      magFilter: 'linear',
+      minFilter: 'linear',
+      addressModeU: 'clamp-to-edge',
+      addressModeV: 'clamp-to-edge',
+    });
+  }
+
+  _createDefaultAOResources() {
+    if (this.defaultAOTexture) {
+      return;
+    }
+
+    this.defaultAOTexture = this.device.createTexture({
+      label: 'MeshPassAOFallback',
+      size: { width: 1, height: 1, depthOrArrayLayers: 1 },
+      format: 'rgba8unorm',
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+    });
+    const data = new Uint8Array([255, 255, 255, 255]);
+    this.device.queue.writeTexture(
+      { texture: this.defaultAOTexture },
+      data,
+      { bytesPerRow: 4 },
+      { width: 1, height: 1, depthOrArrayLayers: 1 },
+    );
+    this.defaultAOView = this.defaultAOTexture.createView({
+      label: 'MeshPassAOFallbackView',
+    });
+    this.defaultAOSampler = this.device.createSampler({
+      label: 'MeshPassAOFallbackSampler',
       magFilter: 'linear',
       minFilter: 'linear',
       addressModeU: 'clamp-to-edge',
@@ -319,17 +364,25 @@ export default class MeshPass {
     const view = shadowView ?? this.defaultShadowView;
     const sampler = shadowSampler ?? this.defaultShadowSampler;
 
+    const aoResource = this.getSSAOResources ? this.getSSAOResources() : null;
+    const aoView = aoResource?.view ?? this.defaultAOView;
+    const aoSampler = aoResource?.sampler ?? this.defaultAOSampler;
+
     if (
       !this.sceneBindGroupDirty &&
       this.sceneBindGroup &&
       this.shadowMapView === view &&
-      this.shadowSampler === sampler
+      this.shadowSampler === sampler &&
+      this.ssaoView === aoView &&
+      this.ssaoSampler === aoSampler
     ) {
       return;
     }
 
     this.shadowMapView = view;
     this.shadowSampler = sampler;
+    this.ssaoView = aoView;
+    this.ssaoSampler = aoSampler;
     this.sceneBindGroup = this.device.createBindGroup({
       label: 'MeshPassSceneBindGroup',
       layout: this.sceneLayout,
@@ -337,6 +390,8 @@ export default class MeshPass {
         { binding: 0, resource: { buffer: this.sceneBuffer } },
         { binding: 1, resource: view },
         { binding: 2, resource: sampler },
+        { binding: 3, resource: aoView },
+        { binding: 4, resource: aoSampler },
       ],
     });
     this.sceneBindGroupDirty = false;
@@ -387,6 +442,9 @@ export default class MeshPass {
   }
 
   _ensureDepthTexture(width, height) {
+    if (typeof this.getDepthView === 'function') {
+      return;
+    }
     const w = Math.max(1, Math.floor(width));
     const h = Math.max(1, Math.floor(height));
     if (this.depthTexture && this.depthWidth === w && this.depthHeight === h) {
@@ -400,7 +458,7 @@ export default class MeshPass {
     this.depthTexture = this.device.createTexture({
       size: { width: w, height: h, depthOrArrayLayers: 1 },
       format: this.depthFormat,
-      usage: GPUTextureUsage.RENDER_ATTACHMENT,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
     });
     this.depthView = this.depthTexture.createView();
   }
@@ -576,7 +634,26 @@ export default class MeshPass {
     const width = size?.width ?? this.depthWidth ?? 1;
     const height = size?.height ?? this.depthHeight ?? 1;
 
-    this._ensureDepthTexture(width, height);
+    let depthView = null;
+    let depthLoadOp = 'clear';
+    if (typeof this.getDepthView === 'function') {
+      depthView = this.getDepthView();
+      if (!depthView) {
+        this._ensureDepthTexture(width, height);
+        depthView = this.depthView;
+      } else {
+        this.depthView = depthView;
+        depthLoadOp = 'load';
+      }
+    } else {
+      this._ensureDepthTexture(width, height);
+      depthView = this.depthView;
+    }
+
+    if (!depthView) {
+      return;
+    }
+
     const cameraInfo = this._updateSceneUniform(width, height);
 
     const visibleInstances = renderList.update(cameraInfo);
@@ -594,8 +671,8 @@ export default class MeshPass {
         },
       ],
       depthStencilAttachment: {
-        view: this.depthView,
-        depthLoadOp: 'clear',
+        view: depthView,
+        depthLoadOp: depthLoadOp,
         depthStoreOp: 'store',
         depthClearValue: 1.0,
       },
