@@ -1,6 +1,8 @@
 import Materials from '../../engine/render/materials/registry.js';
 import { Signal } from '../../engine/core/signal.js';
 import { tryGetDevice } from '../../engine/render/gpu/device.js';
+import { createTextureFromImage } from '../../engine/render/textures/loader.js';
+import { getDefaultAnisotropicSampler, getDefaultLinearSampler } from '../../engine/render/textures/sampler.js';
 
 const MATERIAL_TEXTURE_SLOTS = [
   { key: 'albedo', label: 'Base Color', paramTexture: 'albedoTexture', paramSampler: 'albedoSampler', srgb: true },
@@ -112,13 +114,9 @@ class EditorMaterialRegistry {
       if (!device) {
         throw new Error('GPU device is not initialized');
       }
-      const sampler = device.createSampler({
-        addressModeU: 'repeat',
-        addressModeV: 'repeat',
-        magFilter: 'linear',
-        minFilter: 'linear',
-        mipmapFilter: 'linear',
-      });
+      const sampler = slotKey === 'metallicRoughness' || slotKey === 'occlusion'
+        ? getDefaultLinearSampler(device)
+        : getDefaultAnisotropicSampler(device);
       this._samplers.set(slotKey, sampler);
     }
     return this._samplers.get(slotKey);
@@ -261,23 +259,16 @@ class EditorMaterialRegistry {
       throw new Error('Asset does not contain image data');
     }
 
-    const texture = device.createTexture({
-      size: { width: bitmap.width, height: bitmap.height, depthOrArrayLayers: 1 },
-      format: slot.srgb ? 'rgba8unorm-srgb' : 'rgba8unorm',
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+    const { texture, view } = createTextureFromImage(device, bitmap, {
+      label: `EditorTexture:${slot.key}:${asset.name || 'asset'}`,
+      srgb: Boolean(slot.srgb),
+      generateMipmaps: true,
     });
-
-    device.queue.copyExternalImageToTexture(
-      { source: bitmap },
-      { texture },
-      { width: bitmap.width, height: bitmap.height, depthOrArrayLayers: 1 },
-    );
 
     if (typeof bitmap.close === 'function') {
       bitmap.close();
     }
 
-    const view = texture.createView();
     const params = {
       [slot.paramTexture]: view,
       [slot.paramSampler]: this._getSampler(slot.key),

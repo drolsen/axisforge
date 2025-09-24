@@ -7,6 +7,7 @@ import {
   createStandardPBRBindGroup,
   STANDARD_PBR_BINDINGS
 } from './ubos.js';
+import { getDefaultAnisotropicSampler } from '../textures/sampler.js';
 
 class MaterialRegistry {
   constructor() {
@@ -85,13 +86,7 @@ class MaterialRegistry {
     const whiteLinear = this._createSolidTexture([255, 255, 255, 255], 'rgba8unorm');
     const normalDefault = this._createSolidTexture([128, 128, 255, 255], 'rgba8unorm');
     const blackSRGB = this._createSolidTexture([0, 0, 0, 255], 'rgba8unorm-srgb');
-    const sampler = this.device.createSampler({
-      addressModeU: 'repeat',
-      addressModeV: 'repeat',
-      magFilter: 'linear',
-      minFilter: 'linear',
-      mipmapFilter: 'linear',
-    });
+    const sampler = getDefaultAnisotropicSampler(this.device);
 
     const bindings = STANDARD_PBR_BINDINGS;
     this.defaults.set(bindings.ALBEDO_TEXTURE, whiteSRGB);
