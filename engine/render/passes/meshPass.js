@@ -7,7 +7,7 @@ import { GetService } from '../../core/index.js';
 import { getActiveCamera, getGridFade } from '../camera/manager.js';
 
 const FLOAT_SIZE = 4;
-const SCENE_FLOATS = 36;
+const SCENE_FLOATS = 48;
 const SCENE_BUFFER_SIZE = SCENE_FLOATS * FLOAT_SIZE;
 const GRID_FLOATS = 24;
 const GRID_BUFFER_SIZE = GRID_FLOATS * FLOAT_SIZE;
@@ -376,14 +376,6 @@ export default class MeshPass {
       fov = fallback.fov;
     }
 
-    this.device.queue.writeBuffer(
-      this.sceneBuffer,
-      0,
-      this.sceneArray.buffer,
-      this.sceneArray.byteOffset,
-      this.sceneArray.byteLength,
-    );
-
     if (this.lighting?.setCameraState) {
       this.lighting.setCameraState({
         position: [...position],
@@ -399,6 +391,46 @@ export default class MeshPass {
     if (this.lighting?.update) {
       this.lighting.update();
     }
+
+    let sunDirection = [0, -1, 0];
+    let sunColor = [1, 1, 1];
+    let sunIntensity = 3.5;
+    if (this.lighting?.getSun) {
+      const sun = this.lighting.getSun();
+      if (Array.isArray(sun?.direction) && sun.direction.length >= 3) {
+        sunDirection = sun.direction;
+      }
+      if (Array.isArray(sun?.color) && sun.color.length >= 3) {
+        sunColor = sun.color;
+      }
+      if (typeof sun?.intensity === 'number') {
+        sunIntensity = sun.intensity;
+      }
+    }
+
+    let ambientColor = [0.03, 0.03, 0.03];
+    let ambientIntensity = 1.0;
+    if (this.lighting?.getAmbient) {
+      const ambient = this.lighting.getAmbient();
+      if (Array.isArray(ambient?.color) && ambient.color.length >= 3) {
+        ambientColor = ambient.color;
+      }
+      if (typeof ambient?.intensity === 'number') {
+        ambientIntensity = ambient.intensity;
+      }
+    }
+
+    this.sceneArray.set([sunDirection[0], sunDirection[1], sunDirection[2], 0], 36);
+    this.sceneArray.set([sunColor[0], sunColor[1], sunColor[2], sunIntensity], 40);
+    this.sceneArray.set([ambientColor[0], ambientColor[1], ambientColor[2], ambientIntensity], 44);
+
+    this.device.queue.writeBuffer(
+      this.sceneBuffer,
+      0,
+      this.sceneArray.buffer,
+      this.sceneArray.byteOffset,
+      this.sceneArray.byteLength,
+    );
 
     return {
       viewProjection: viewProj,
