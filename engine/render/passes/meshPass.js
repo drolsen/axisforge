@@ -365,7 +365,7 @@ export default class MeshPass {
     const sampler = shadowSampler ?? this.defaultShadowSampler;
 
     const aoResource = this.getSSAOResources ? this.getSSAOResources() : null;
-    const aoView = aoResource?.view ?? this.defaultAOView;
+    const aoView = aoResource?.view ?? aoResource?.aoView ?? this.defaultAOView;
     const aoSampler = aoResource?.sampler ?? this.defaultAOSampler;
 
     if (
