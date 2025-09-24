@@ -8,13 +8,25 @@ const RunService = GetService("RunService");
 console.log("[Client] main.client.js loaded");
 
 let t = 0;
+let logAccumulator = 0;
 
 export function start() {
   const Lighting = GetService("Lighting");
   // Example per-frame update; replace with your own gameplay code.
   RunService.BindToRenderStep("RotateSky", 100, (dt) => {
     t += dt;
-    // TODO: hook into actual sky/lighting once implemented.
+    logAccumulator += dt;
+    if (logAccumulator >= 5) {
+      logAccumulator = 0;
+      const time = Lighting.getTimeOfDay?.();
+      const angles = Lighting.getSunAngles?.();
+      if (Number.isFinite(time) && angles) {
+        const elevationDeg = (angles.elevation * 180) / Math.PI;
+        console.log(
+          `[Lighting] Time ${time.toFixed(2)}h | Sun elev ${elevationDeg.toFixed(1)}°`,
+        );
+      }
+    }
   });
 }
 

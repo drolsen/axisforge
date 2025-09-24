@@ -12,6 +12,7 @@ let runtimeCamera = null;
 let runtimeController = null;
 let savedCamera = null;
 let savedGridVisible = true;
+let savedLightingState = null;
 
 function setupRuntimeCamera() {
   const UIS = GetService("UserInputService");
@@ -73,6 +74,19 @@ export async function startPlay(entryUrl = DEFAULT_ENTRY) {
 
   try {
     setupRuntimeCamera();
+    const lighting = GetService("Lighting");
+    if (lighting?.setTimeAnimating) {
+      const currentSpeed = lighting.getTimeSpeed?.();
+      const safeSpeed = Number.isFinite(currentSpeed) ? currentSpeed : 0.05;
+      savedLightingState = {
+        animating: lighting.isTimeAnimating?.() ?? false,
+        speed: safeSpeed,
+      };
+      lighting.setTimeAnimating(true);
+      if (!Number.isFinite(currentSpeed) || currentSpeed === 0) {
+        lighting.setTimeSpeed?.(safeSpeed);
+      }
+    }
     currentModule = await loadClientModule(entryUrl);
     if (typeof currentModule.start === "function") {
       await currentModule.start();
@@ -81,6 +95,14 @@ export async function startPlay(entryUrl = DEFAULT_ENTRY) {
   } catch (err) {
     console.error("[PLAY] Failed to load", entryUrl, err);
     playing = false;
+    const lighting = GetService("Lighting");
+    if (lighting?.setTimeAnimating && savedLightingState) {
+      lighting.setTimeAnimating(savedLightingState.animating);
+      if (lighting?.setTimeSpeed) {
+        lighting.setTimeSpeed(savedLightingState.speed);
+      }
+    }
+    savedLightingState = null;
     teardownRuntimeCamera();
   }
 }
@@ -98,6 +120,14 @@ export async function stopPlay() {
   // TODO: teardown play graph, restore editor state.
   currentModule = null;
   playing = false;
+  const lighting = GetService("Lighting");
+  if (lighting?.setTimeAnimating && savedLightingState) {
+    lighting.setTimeAnimating(savedLightingState.animating);
+    if (lighting?.setTimeSpeed) {
+      lighting.setTimeSpeed(savedLightingState.speed);
+    }
+  }
+  savedLightingState = null;
   teardownRuntimeCamera();
   console.log(" [PLAY] Stopped.");
 }
