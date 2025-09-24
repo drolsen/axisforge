@@ -17,13 +17,28 @@ export default class DirectionalLight {
     direction = DEFAULT_DIRECTION,
     color = DEFAULT_COLOR,
     intensity = DEFAULT_INTENSITY,
-    cascades = 4,
+    cascades = 3,
+    lambda = 0.5,
+    stabilize = true,
+    resolution = 2048,
   } = {}) {
     this.direction = normalize(direction);
     this.color = [...color];
     this.intensity = intensity;
 
-    this.csm = new CascadedShadowMaps({ cascades });
+    this.shadowSettings = {
+      cascades,
+      lambda,
+      stabilize,
+      resolution,
+    };
+
+    this.csm = new CascadedShadowMaps({
+      cascades,
+      lambda,
+      stabilize,
+      resolution,
+    });
   }
 
   setDirection(vec) {
@@ -38,21 +53,36 @@ export default class DirectionalLight {
     this.intensity = value;
   }
 
+  setShadowSettings(settings = {}) {
+    if (!settings || typeof settings !== 'object') {
+      return;
+    }
+    const next = { ...this.shadowSettings };
+    if (settings.cascades != null) {
+      next.cascades = settings.cascades;
+    }
+    if (settings.lambda != null) {
+      next.lambda = settings.lambda;
+    }
+    if (settings.stabilize != null) {
+      next.stabilize = settings.stabilize;
+    }
+    if (settings.resolution != null) {
+      next.resolution = settings.resolution;
+    }
+    this.shadowSettings = next;
+    this.csm.setCascadeCount(next.cascades);
+    this.csm.setLambda(next.lambda);
+    this.csm.setStabilize(next.stabilize);
+    this.csm.setResolution(next.resolution);
+  }
+
   update(camera) {
     if (!camera) {
       return;
     }
 
-    const cascadeData = this.csm.update(camera, this.direction);
-
-    cascadeData.forEach((cascade, index) => {
-      console.log(
-        `DirectionalLight CSM Cascade ${index}: split [${cascade.near.toFixed(3)}, ${cascade.far.toFixed(3)}]`
-      );
-      console.log('  View Matrix:', cascade.viewMatrix);
-      console.log('  Projection Matrix:', cascade.projectionMatrix);
-      console.log('  ViewProjection Matrix:', cascade.viewProjectionMatrix);
-    });
+    this.csm.update(camera, this.direction);
   }
 
   getSunParams() {
@@ -62,6 +92,7 @@ export default class DirectionalLight {
       intensity: this.intensity,
       cascades: this.csm.cascades,
       cascadeData: this.csm.cascadeData,
+      shadowSettings: { ...this.shadowSettings },
     };
   }
 }

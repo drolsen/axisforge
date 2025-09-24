@@ -2,6 +2,7 @@ import FrameGraph from '../framegraph/index.js';
 import ClearPass from '../passes/clearPass.js';
 import SkyPass from '../passes/skyPass.js';
 import MeshPass from '../passes/meshPass.js';
+import ShadowMapPass from '../lighting/shadowMapPass.js';
 import HDRTarget from '../post/hdr.js';
 import ACESPass from '../passes/acesPass.js';
 import FXAAPass from '../passes/fxaaPass.js';
@@ -31,12 +32,14 @@ export async function initWebGPU(canvas) {
 
   const hdrTarget = new HDRTarget(device);
   const frameGraph = new FrameGraph(device, context);
+  const shadowPass = new ShadowMapPass(device, () => hdrTarget.getSize());
   const clearPass = new ClearPass(device, () => hdrTarget.getView());
   const skyPass = new SkyPass(device, 'rgba16float', () => hdrTarget.getView());
   const meshPass = new MeshPass(device, 'rgba16float', () => hdrTarget.getView(), () => hdrTarget.getSize());
   const acesPass = new ACESPass(device, hdrTarget, 'rgba16float');
   const fxaaPass = new FXAAPass(device, acesPass, format);
 
+  frameGraph.addPass(shadowPass);
   frameGraph.addPass(clearPass);
   frameGraph.addPass(skyPass);
   frameGraph.addPass(meshPass);
