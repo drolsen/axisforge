@@ -2,6 +2,65 @@ const FLOAT32_BYTES = 4;
 const VERTEX_FLOATS = 12;
 const VERTEX_STRIDE = VERTEX_FLOATS * FLOAT32_BYTES;
 
+function createEmptyBounds() {
+  return {
+    min: [Infinity, Infinity, Infinity],
+    max: [-Infinity, -Infinity, -Infinity],
+  };
+}
+
+function computeBoundsFromVertices(vertexData, stride = VERTEX_FLOATS) {
+  if (!vertexData || vertexData.length === 0) {
+    return null;
+  }
+
+  const bounds = createEmptyBounds();
+  const vertexCount = Math.floor(vertexData.length / stride);
+
+  for (let i = 0; i < vertexCount; i += 1) {
+    const offset = i * stride;
+    const x = vertexData[offset + 0];
+    const y = vertexData[offset + 1];
+    const z = vertexData[offset + 2];
+
+    if (x < bounds.min[0]) bounds.min[0] = x;
+    if (y < bounds.min[1]) bounds.min[1] = y;
+    if (z < bounds.min[2]) bounds.min[2] = z;
+
+    if (x > bounds.max[0]) bounds.max[0] = x;
+    if (y > bounds.max[1]) bounds.max[1] = y;
+    if (z > bounds.max[2]) bounds.max[2] = z;
+  }
+
+  return bounds;
+}
+
+function cloneBounds(bounds) {
+  if (!bounds) {
+    return null;
+  }
+  return {
+    min: [...bounds.min],
+    max: [...bounds.max],
+  };
+}
+
+function mergeBounds(target, source) {
+  if (!source) {
+    return target;
+  }
+  if (!target) {
+    return cloneBounds(source);
+  }
+
+  for (let i = 0; i < 3; i += 1) {
+    if (source.min[i] < target.min[i]) target.min[i] = source.min[i];
+    if (source.max[i] > target.max[i]) target.max[i] = source.max[i];
+  }
+
+  return target;
+}
+
 function createGPUBuffer(device, data, usage) {
   const buffer = device.createBuffer({
     size: data.byteLength,
@@ -34,12 +93,15 @@ export default class Mesh {
   constructor(device, primitives = []) {
     this.device = device;
     this.primitives = primitives.map(primitive => this._createPrimitive(primitive));
+    this.bounds = null;
+    this._computeMeshBounds();
   }
 
   _createPrimitive({ vertexData, indexData = null, materialId = null }) {
     if (!(vertexData instanceof Float32Array)) {
       throw new Error('vertexData must be a Float32Array');
     }
+    const bounds = computeBoundsFromVertices(vertexData);
     const vertexBuffer = createGPUBuffer(
       this.device,
       vertexData,
@@ -68,7 +130,19 @@ export default class Mesh {
       indexFormat,
       indexCount,
       materialId,
+      bounds,
     };
+  }
+
+  _computeMeshBounds() {
+    let combined = null;
+    for (const primitive of this.primitives) {
+      if (!primitive?.bounds) {
+        continue;
+      }
+      combined = mergeBounds(combined, primitive.bounds);
+    }
+    this.bounds = combined;
   }
 
   destroy() {

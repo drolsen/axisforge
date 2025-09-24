@@ -12,6 +12,11 @@ const frameStats = {
   totalDrawCalls: 0,
   passes: {},
   renderCpuTime: 0,
+  meshInstances: {
+    total: 0,
+    visible: 0,
+    culled: 0,
+  },
 };
 
 let frameStartTime = 0;
@@ -20,6 +25,9 @@ export function beginFrame() {
   frameStartTime = now();
   frameStats.totalDrawCalls = 0;
   frameStats.passes = {};
+  frameStats.meshInstances.total = 0;
+  frameStats.meshInstances.visible = 0;
+  frameStats.meshInstances.culled = 0;
 }
 
 export function endFrame() {
@@ -38,6 +46,12 @@ export function recordDrawCall(name, count = 1) {
   markPass(passName);
   frameStats.passes[passName].drawCalls += count;
   frameStats.totalDrawCalls += count;
+}
+
+export function setMeshInstanceStats({ total = 0, visible = 0, culled = 0 } = {}) {
+  frameStats.meshInstances.total = total;
+  frameStats.meshInstances.visible = visible;
+  frameStats.meshInstances.culled = culled;
 }
 
 export function updateFrameMetrics(deltaSeconds) {

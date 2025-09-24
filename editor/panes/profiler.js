@@ -65,6 +65,18 @@ export default class ProfilerPane {
     this.totalDrawValue = totalDrawRow.valueEl;
     this.root.appendChild(totalDrawRow.row);
 
+    const meshTotalRow = createStatRow('Mesh Instances');
+    this.meshTotalValue = meshTotalRow.valueEl;
+    this.root.appendChild(meshTotalRow.row);
+
+    const meshVisibleRow = createStatRow('Visible Meshes');
+    this.meshVisibleValue = meshVisibleRow.valueEl;
+    this.root.appendChild(meshVisibleRow.row);
+
+    const meshCulledRow = createStatRow('Culled Meshes');
+    this.meshCulledValue = meshCulledRow.valueEl;
+    this.root.appendChild(meshCulledRow.row);
+
     const divider = document.createElement('div');
     divider.style.height = '1px';
     divider.style.background = 'rgba(255, 255, 255, 0.1)';
@@ -113,11 +125,18 @@ export default class ProfilerPane {
     const fps = Number.isFinite(stats.fps) ? stats.fps : 0;
     const frameTime = Number.isFinite(stats.cpuFrameTime) ? stats.cpuFrameTime : 0;
     const totalDrawCalls = typeof stats.totalDrawCalls === 'number' ? stats.totalDrawCalls : 0;
+    const meshStats = stats.meshInstances || {};
+    const meshTotal = typeof meshStats.total === 'number' ? meshStats.total : 0;
+    const meshVisible = typeof meshStats.visible === 'number' ? meshStats.visible : 0;
+    const meshCulled = typeof meshStats.culled === 'number' ? meshStats.culled : 0;
 
     this.fpsValue.textContent = fps.toFixed(1);
     this.frameTimeValue.textContent = frameTime.toFixed(2);
     this.gpuValue.textContent = stats.gpuAdapterName || 'Detecting…';
     this.totalDrawValue.textContent = totalDrawCalls.toString();
+    this.meshTotalValue.textContent = meshTotal.toString();
+    this.meshVisibleValue.textContent = meshVisible.toString();
+    this.meshCulledValue.textContent = meshCulled.toString();
 
     this._syncPassRows(stats.passes || {});
   }
