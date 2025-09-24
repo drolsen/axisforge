@@ -9,6 +9,7 @@ import ProfilerPane from '../panes/profiler.js';
 import UndoService from '../services/undo.js';
 import { Selection } from '../services/selection.js';
 import TranslationGizmo from '../components/gizmos.js';
+import MaterialsPane from '../panes/materials.js';
 
 export function bootstrap() {
   const undo = new UndoService();
@@ -16,6 +17,7 @@ export function bootstrap() {
 
   new Explorer(undo, selection);
   new Properties(undo, selection);
+  new MaterialsPane({ selection });
   new TranslationGizmo(selection, undo);
   initViewport();
   new ConsolePane();
