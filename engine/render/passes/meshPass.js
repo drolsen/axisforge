@@ -7,13 +7,20 @@ import { GetService } from '../../core/index.js';
 import { getActiveCamera, getGridFade } from '../camera/manager.js';
 
 const FLOAT_SIZE = 4;
-const SCENE_FLOATS = 48;
+const MAX_CASCADES = 4;
+const SCENE_FLOATS = 120;
 const SCENE_BUFFER_SIZE = SCENE_FLOATS * FLOAT_SIZE;
 const GRID_FLOATS = 24;
 const GRID_BUFFER_SIZE = GRID_FLOATS * FLOAT_SIZE;
 const GRID_EXTENT = 400;
 const GRID_THIN_WIDTH = 0.02;
 const GRID_MAJOR_WIDTH = 0.08;
+const IDENTITY_MATRIX = new Float32Array([
+  1, 0, 0, 0,
+  0, 1, 0, 0,
+  0, 0, 1, 0,
+  0, 0, 0, 1,
+]);
 
 const GRID_SHADER = /* wgsl */`
 struct GridUniforms {
@@ -92,6 +99,13 @@ export default class MeshPass {
     this.sceneBindGroup = null;
     this.sceneLayout = null;
     this.instanceLayout = null;
+    this.sceneBindGroupDirty = true;
+
+    this.shadowMapView = null;
+    this.shadowSampler = null;
+    this.defaultShadowTexture = null;
+    this.defaultShadowView = null;
+    this.defaultShadowSampler = null;
 
     this.gridPipeline = null;
     this.gridLayout = null;
@@ -109,9 +123,15 @@ export default class MeshPass {
   }
 
   async _loadShaderModule() {
-    const url = new URL('../materials/pbrStandard.wgsl', import.meta.url);
-    const response = await fetch(url);
-    const code = await response.text();
+    const [shadowUrl, pbrUrl] = [
+      new URL('../materials/shadow.wgsl', import.meta.url),
+      new URL('../materials/pbrStandard.wgsl', import.meta.url),
+    ];
+    const [shadowSource, pbrSource] = await Promise.all([
+      fetch(shadowUrl).then(resp => resp.text()),
+      fetch(pbrUrl).then(resp => resp.text()),
+    ]);
+    const code = `${shadowSource}\n${pbrSource}`;
     return this.device.createShaderModule({ code });
   }
 
@@ -122,10 +142,14 @@ export default class MeshPass {
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
 
+    this._createDefaultShadowResources();
+
     this.sceneLayout = this.device.createBindGroupLayout({
       label: 'MeshPassSceneLayout',
       entries: [
         { binding: 0, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+        { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'depth', viewDimension: '2d-array' } },
+        { binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'comparison' } },
       ],
     });
 
@@ -141,8 +165,13 @@ export default class MeshPass {
       layout: this.sceneLayout,
       entries: [
         { binding: 0, resource: { buffer: this.sceneBuffer } },
+        { binding: 1, resource: this.defaultShadowView },
+        { binding: 2, resource: this.defaultShadowSampler },
       ],
     });
+    this.shadowMapView = this.defaultShadowView;
+    this.shadowSampler = this.defaultShadowSampler;
+    this.sceneBindGroupDirty = false;
 
     const materialLayout = Materials.getLayout('StandardPBR');
     if (!materialLayout) {
@@ -190,6 +219,33 @@ export default class MeshPass {
     });
 
     this._createGridPipeline();
+  }
+
+  _createDefaultShadowResources() {
+    if (this.defaultShadowTexture) {
+      return;
+    }
+
+    this.defaultShadowTexture = this.device.createTexture({
+      label: 'MeshPassShadowFallback',
+      size: { width: 1, height: 1, depthOrArrayLayers: MAX_CASCADES },
+      format: 'depth32float',
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+    });
+    this.defaultShadowView = this.defaultShadowTexture.createView({
+      label: 'MeshPassShadowFallbackView',
+      dimension: '2d-array',
+      baseArrayLayer: 0,
+      arrayLayerCount: MAX_CASCADES,
+    });
+    this.defaultShadowSampler = this.device.createSampler({
+      label: 'MeshPassShadowFallbackSampler',
+      compare: 'less-equal',
+      magFilter: 'linear',
+      minFilter: 'linear',
+      addressModeU: 'clamp-to-edge',
+      addressModeV: 'clamp-to-edge',
+    });
   }
 
   _createGridPipeline() {
@@ -257,6 +313,33 @@ export default class MeshPass {
         depthCompare: 'less-equal',
       },
     });
+  }
+
+  _updateSceneBindGroupResources(shadowView, shadowSampler) {
+    const view = shadowView ?? this.defaultShadowView;
+    const sampler = shadowSampler ?? this.defaultShadowSampler;
+
+    if (
+      !this.sceneBindGroupDirty &&
+      this.sceneBindGroup &&
+      this.shadowMapView === view &&
+      this.shadowSampler === sampler
+    ) {
+      return;
+    }
+
+    this.shadowMapView = view;
+    this.shadowSampler = sampler;
+    this.sceneBindGroup = this.device.createBindGroup({
+      label: 'MeshPassSceneBindGroup',
+      layout: this.sceneLayout,
+      entries: [
+        { binding: 0, resource: { buffer: this.sceneBuffer } },
+        { binding: 1, resource: view },
+        { binding: 2, resource: sampler },
+      ],
+    });
+    this.sceneBindGroupDirty = false;
   }
 
   _writeGridUniform(info) {
@@ -395,16 +478,17 @@ export default class MeshPass {
     let sunDirection = [0, -1, 0];
     let sunColor = [1, 1, 1];
     let sunIntensity = 3.5;
+    let sunData = null;
     if (this.lighting?.getSun) {
-      const sun = this.lighting.getSun();
-      if (Array.isArray(sun?.direction) && sun.direction.length >= 3) {
-        sunDirection = sun.direction;
+      sunData = this.lighting.getSun();
+      if (Array.isArray(sunData?.direction) && sunData.direction.length >= 3) {
+        sunDirection = sunData.direction;
       }
-      if (Array.isArray(sun?.color) && sun.color.length >= 3) {
-        sunColor = sun.color;
+      if (Array.isArray(sunData?.color) && sunData.color.length >= 3) {
+        sunColor = sunData.color;
       }
-      if (typeof sun?.intensity === 'number') {
-        sunIntensity = sun.intensity;
+      if (typeof sunData?.intensity === 'number') {
+        sunIntensity = sunData.intensity;
       }
     }
 
@@ -423,6 +507,48 @@ export default class MeshPass {
     this.sceneArray.set([sunDirection[0], sunDirection[1], sunDirection[2], 0], 36);
     this.sceneArray.set([sunColor[0], sunColor[1], sunColor[2], sunIntensity], 40);
     this.sceneArray.set([ambientColor[0], ambientColor[1], ambientColor[2], ambientIntensity], 44);
+
+    const cascadeOffset = 48;
+    const splitsOffset = cascadeOffset + MAX_CASCADES * 16;
+    const shadowParamsOffset = splitsOffset + 4;
+    const cascades = Array.isArray(sunData?.cascadeData) ? sunData.cascadeData : [];
+    const splits = new Float32Array(MAX_CASCADES);
+    let lastSplit = far ?? 100;
+
+    for (let i = 0; i < MAX_CASCADES; i += 1) {
+      const matrixOffset = cascadeOffset + i * 16;
+      const cascade = cascades[i];
+      if (cascade?.viewProjectionMatrix) {
+        this.sceneArray.set(cascade.viewProjectionMatrix, matrixOffset);
+        const splitFar = typeof cascade.far === 'number' ? cascade.far : lastSplit;
+        splits[i] = splitFar;
+        lastSplit = splitFar;
+      } else {
+        this.sceneArray.set(IDENTITY_MATRIX, matrixOffset);
+        splits[i] = lastSplit;
+      }
+    }
+
+    this.sceneArray.set(splits, splitsOffset);
+
+    let cascadeCount = Math.min(MAX_CASCADES, cascades.length);
+    if (sunIntensity <= 0.0) {
+      cascadeCount = 0;
+    }
+    const shadowInfo = sunData?.shadow ?? null;
+    const shadowView = shadowInfo?.mapView ?? null;
+    const shadowSampler = shadowInfo?.sampler ?? null;
+    const shadowResolution = Math.max(1, Math.floor(shadowInfo?.resolution ?? 2048));
+    const shadowSettings = shadowInfo?.settings ?? {};
+    const shadowBias = typeof shadowSettings.bias === 'number' ? shadowSettings.bias : 0.0025;
+    const shadowNormalBias = typeof shadowSettings.normalBias === 'number' ? shadowSettings.normalBias : 0.5;
+
+    this.sceneArray[shadowParamsOffset + 0] = cascadeCount;
+    this.sceneArray[shadowParamsOffset + 1] = 1 / shadowResolution;
+    this.sceneArray[shadowParamsOffset + 2] = shadowBias;
+    this.sceneArray[shadowParamsOffset + 3] = shadowNormalBias;
+
+    this._updateSceneBindGroupResources(shadowView, shadowSampler);
 
     this.device.queue.writeBuffer(
       this.sceneBuffer,

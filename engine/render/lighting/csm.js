@@ -4,6 +4,7 @@ const DEFAULT_SCENE_BOUNDS = {
 };
 
 const WORLD_UP = [0, 1, 0];
+const MAX_CASCADES = 4;
 
 function lerp(a, b, t) {
   return a + (b - a) * t;
@@ -191,10 +192,43 @@ function padCascadeWithSceneBounds(points) {
 }
 
 export default class CascadedShadowMaps {
-  constructor({ cascades = 4, lambda = 0.5 } = {}) {
-    this.cascades = Math.min(Math.max(cascades, 1), 4);
-    this.lambda = lambda;
+  constructor({ cascades = 3, lambda = 0.5, resolution = 2048, stabilize = true } = {}) {
+    this.cascades = this._clampCascadeCount(cascades);
+    this.lambda = this._clampLambda(lambda);
+    this.resolution = Math.max(1, Math.floor(resolution));
+    this.stabilize = Boolean(stabilize);
     this.cascadeData = [];
+    this.cascadePadding = 10;
+    this.depthPadding = 20;
+  }
+
+  _clampCascadeCount(count) {
+    return Math.min(Math.max(Math.floor(count) || 1, 1), MAX_CASCADES);
+  }
+
+  _clampLambda(value) {
+    if (!Number.isFinite(value)) {
+      return 0.5;
+    }
+    return Math.min(Math.max(value, 0), 1);
+  }
+
+  setCascadeCount(count) {
+    this.cascades = this._clampCascadeCount(count);
+  }
+
+  setResolution(resolution) {
+    if (Number.isFinite(resolution)) {
+      this.resolution = Math.max(1, Math.floor(resolution));
+    }
+  }
+
+  setLambda(lambda) {
+    this.lambda = this._clampLambda(lambda);
+  }
+
+  setStabilize(enabled) {
+    this.stabilize = Boolean(enabled);
   }
 
   computeSplits(near, far) {
@@ -217,13 +251,16 @@ export default class CascadedShadowMaps {
     const cascades = [];
     let lastSplit = near;
 
+    const lightDir = normalize(lightDirection);
+
     for (let i = 0; i < this.cascades; i += 1) {
       const cascadeFar = splits[i];
       const corners = computeCascadeCorners(camera, lastSplit, cascadeFar);
       const paddedCorners = padCascadeWithSceneBounds(corners);
       const { center, radius } = computeBoundingSphere(paddedCorners);
-      const lightDir = normalize(lightDirection);
-      const lightPos = subtract(center, scale(lightDir, radius * 2));
+
+      const lightDistance = radius + this.cascadePadding;
+      const lightPos = subtract(center, scale(lightDir, lightDistance));
 
       let lightUp = [...WORLD_UP];
       if (Math.abs(dot(lightUp, lightDir)) > 0.99) {
@@ -233,23 +270,39 @@ export default class CascadedShadowMaps {
       const viewMatrix = lookAt(lightPos, center, lightUp);
       const lightSpaceCorners = paddedCorners.map(point => transformPoint(viewMatrix, point));
 
-      let minX = Infinity;
-      let maxX = -Infinity;
-      let minY = Infinity;
-      let maxY = -Infinity;
       let minZ = Infinity;
       let maxZ = -Infinity;
-
       for (const point of lightSpaceCorners) {
-        minX = Math.min(minX, point[0]);
-        maxX = Math.max(maxX, point[0]);
-        minY = Math.min(minY, point[1]);
-        maxY = Math.max(maxY, point[1]);
         minZ = Math.min(minZ, point[2]);
         maxZ = Math.max(maxZ, point[2]);
       }
 
-      const projectionMatrix = orthographic(minX, maxX, minY, maxY, minZ, maxZ);
+      const lightSpaceCenter = transformPoint(viewMatrix, center);
+      const texelSize = radius > 0 ? (2 * radius) / Math.max(1, this.resolution) : 0;
+      let snappedX = lightSpaceCenter[0];
+      let snappedY = lightSpaceCenter[1];
+      if (this.stabilize && texelSize > 0) {
+        snappedX = Math.round(lightSpaceCenter[0] / texelSize) * texelSize;
+        snappedY = Math.round(lightSpaceCenter[1] / texelSize) * texelSize;
+      }
+      const halfSize = radius + (this.stabilize && texelSize > 0 ? texelSize : 0);
+
+      const minX = snappedX - halfSize;
+      const maxX = snappedX + halfSize;
+      const minY = snappedY - halfSize;
+      const maxY = snappedY + halfSize;
+
+      const cascadeMinZ = minZ - this.depthPadding;
+      const cascadeMaxZ = maxZ + this.depthPadding;
+
+      const projectionMatrix = orthographic(
+        minX,
+        maxX,
+        minY,
+        maxY,
+        cascadeMinZ,
+        cascadeMaxZ,
+      );
       const viewProjectionMatrix = multiplyMat4(projectionMatrix, viewMatrix);
 
       cascades.push({

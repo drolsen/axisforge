@@ -1,3 +1,5 @@
+const MAX_CASCADES : u32 = 4u;
+
 struct SceneUniform {
   viewProj : mat4x4<f32>,
   view : mat4x4<f32>,
@@ -5,6 +7,9 @@ struct SceneUniform {
   sunDirection : vec4<f32>,
   sunColor : vec4<f32>,
   ambientColor : vec4<f32>,
+  cascades : array<mat4x4<f32>, 4>,
+  cascadeSplits : vec4<f32>,
+  shadowParams : vec4<f32>,
 };
 
 struct MaterialUniform {
@@ -19,6 +24,8 @@ struct InstanceUniform {
 };
 
 @group(0) @binding(0) var<uniform> scene : SceneUniform;
+@group(0) @binding(1) var shadowMap : texture_depth_2d_array;
+@group(0) @binding(2) var shadowSampler : sampler_comparison;
 
 @group(1) @binding(0) var<uniform> material : MaterialUniform;
 @group(1) @binding(1) var baseColorTexture : texture_2d<f32>;
@@ -101,6 +108,55 @@ fn applyNormalMap(normal : vec3<f32>, tangent : vec3<f32>, bitangent : vec3<f32>
   return normalize(tbn * sampled);
 }
 
+fn selectCascade(viewDepth : f32, cascadeCount : u32) -> u32 {
+  if (cascadeCount == 0u) {
+    return 0u;
+  }
+  var index : u32 = 0u;
+  if (cascadeCount > 1u && viewDepth > scene.cascadeSplits.x) {
+    index = 1u;
+  }
+  if (cascadeCount > 2u && viewDepth > scene.cascadeSplits.y) {
+    index = 2u;
+  }
+  if (cascadeCount > 3u && viewDepth > scene.cascadeSplits.z) {
+    index = 3u;
+  }
+  return min(index, cascadeCount - 1u);
+}
+
+fn computeShadowFactor(worldPos : vec3<f32>, normal : vec3<f32>, lightDir : vec3<f32>) -> f32 {
+  let params = scene.shadowParams;
+  let cascadeCount = u32(max(params.x, 0.0));
+  if (cascadeCount == 0u) {
+    return 1.0;
+  }
+
+  let viewPosition = scene.view * vec4<f32>(worldPos, 1.0);
+  let viewDepth = -viewPosition.z;
+  let cascadeIndex = selectCascade(viewDepth, min(cascadeCount, MAX_CASCADES));
+  let lightMatrix = scene.cascades[cascadeIndex];
+
+  let ndotl = max(dot(normal, lightDir), 0.0);
+  let baseBias = params.z;
+  let slopeBias = baseBias * (1.0 - ndotl);
+  let normalOffset = params.w * (1.0 - ndotl);
+
+  let offsetWorld = worldPos + normal * normalOffset;
+  let lightSpace = lightMatrix * vec4<f32>(offsetWorld, 1.0);
+  let projected = lightSpace.xyz / lightSpace.w;
+  let uv = projected.xy * 0.5 + vec2<f32>(0.5);
+
+  if (!shadowInsideFrustum(uv, projected.z)) {
+    return 1.0;
+  }
+
+  let compareDepth = clamp(projected.z - (baseBias + slopeBias), 0.0, 1.0);
+  let coords = vec3<f32>(uv, f32(cascadeIndex));
+  let visibility = sampleShadow3x3(shadowMap, shadowSampler, coords, compareDepth);
+  return clamp(visibility, 0.0, 1.0);
+}
+
 @fragment
 fn fs(input : VertexOutput) -> @location(0) vec4<f32> {
   let viewVector = scene.cameraPos.xyz - input.worldPos;
@@ -152,7 +208,8 @@ fn fs(input : VertexOutput) -> @location(0) vec4<f32> {
 
   let sunColor = scene.sunColor.rgb * scene.sunColor.w;
   let radiance = sunColor;
-  let Lo = (diffuse + specular) * radiance * NdotL;
+  let shadowFactor = computeShadowFactor(input.worldPos, N, L);
+  let Lo = (diffuse + specular) * radiance * NdotL * shadowFactor;
 
   let ambientLight = scene.ambientColor.rgb * scene.ambientColor.w;
   let ambient = ambientLight * baseColor * ao;
