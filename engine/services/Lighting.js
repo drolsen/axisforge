@@ -17,6 +17,8 @@ export default class Lighting {
     this.enabled = true;
     this.sun = new DirectionalLight();
     this._camera = defaultCameraState();
+    this._ambientColor = [0.03, 0.03, 0.03];
+    this._ambientIntensity = 1.0;
   }
 
   setEnabled(enabled) {
@@ -33,6 +35,24 @@ export default class Lighting {
 
   setSunIntensity(intensity) {
     this.sun.setIntensity(intensity);
+  }
+
+  setAmbientColor(color) {
+    if (Array.isArray(color) && color.length >= 3) {
+      this._ambientColor = [
+        Number(color[0]) || 0,
+        Number(color[1]) || 0,
+        Number(color[2]) || 0,
+      ];
+    }
+  }
+
+  setAmbientIntensity(intensity) {
+    if (typeof intensity === 'number') {
+      if (Number.isFinite(intensity)) {
+        this._ambientIntensity = Math.max(0, intensity);
+      }
+    }
   }
 
   setCameraState(camera) {
@@ -63,6 +83,26 @@ export default class Lighting {
   }
 
   getSun() {
-    return this.sun.getSunParams();
+    const sun = this.sun.getSunParams();
+    if (!this.enabled) {
+      return {
+        ...sun,
+        intensity: 0,
+      };
+    }
+    return sun;
+  }
+
+  getAmbient() {
+    if (!this.enabled) {
+      return {
+        color: [0, 0, 0],
+        intensity: 0,
+      };
+    }
+    return {
+      color: [...this._ambientColor],
+      intensity: this._ambientIntensity,
+    };
   }
 }

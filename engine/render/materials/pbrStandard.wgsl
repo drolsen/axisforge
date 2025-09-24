@@ -2,6 +2,9 @@ struct SceneUniform {
   viewProj : mat4x4<f32>,
   view : mat4x4<f32>,
   cameraPos : vec4<f32>,
+  sunDirection : vec4<f32>,
+  sunColor : vec4<f32>,
+  ambientColor : vec4<f32>,
 };
 
 struct MaterialUniform {
@@ -43,6 +46,8 @@ struct VertexOutput {
   @location(0) worldPos : vec3<f32>,
   @location(1) normal : vec3<f32>,
   @location(2) uv : vec2<f32>,
+  @location(3) tangent : vec3<f32>,
+  @location(4) bitangent : vec3<f32>,
 };
 
 @vertex
@@ -51,14 +56,107 @@ fn vs(input : VertexInput) -> VertexOutput {
   let world = instanceUniform.model * vec4<f32>(input.position, 1.0);
   output.position = scene.viewProj * world;
   output.worldPos = world.xyz;
-  output.normal = normalize((instanceUniform.normal * vec4<f32>(input.normal, 0.0)).xyz);
+  let normalWorld = normalize((instanceUniform.normal * vec4<f32>(input.normal, 0.0)).xyz);
+  var tangentWorld = (instanceUniform.normal * vec4<f32>(input.tangent.xyz, 0.0)).xyz;
+  tangentWorld = normalize(tangentWorld - normalWorld * dot(normalWorld, tangentWorld));
+  let bitangentWorld = normalize(cross(normalWorld, tangentWorld)) * input.tangent.w;
+  output.normal = normalWorld;
+  output.tangent = tangentWorld;
+  output.bitangent = bitangentWorld;
   output.uv = input.uv;
   return output;
 }
 
 @fragment
+fn fresnelSchlick(cosTheta : f32, F0 : vec3<f32>) -> vec3<f32> {
+  let ct = clamp(cosTheta, 0.0, 1.0);
+  return F0 + (vec3<f32>(1.0) - F0) * pow(1.0 - ct, 5.0);
+}
+
+fn distributionGGX(NdotH : f32, roughness : f32) -> f32 {
+  let a = roughness * roughness;
+  let a2 = a * a;
+  let denom = max((NdotH * NdotH) * (a2 - 1.0) + 1.0, 1e-4);
+  return a2 / (3.14159265359 * denom * denom);
+}
+
+fn geometrySchlickGGX(NdotV : f32, roughness : f32) -> f32 {
+  let r = roughness + 1.0;
+  let k = (r * r) / 8.0;
+  return NdotV / (NdotV * (1.0 - k) + k);
+}
+
+fn geometrySmith(NdotV : f32, NdotL : f32, roughness : f32) -> f32 {
+  let ggxV = geometrySchlickGGX(NdotV, roughness);
+  let ggxL = geometrySchlickGGX(NdotL, roughness);
+  return ggxV * ggxL;
+}
+
+fn applyNormalMap(normal : vec3<f32>, tangent : vec3<f32>, bitangent : vec3<f32>, uv : vec2<f32>) -> vec3<f32> {
+  let sampled = textureSample(normalTexture, normalSampler, uv).xyz * 2.0 - vec3<f32>(1.0);
+  let t = normalize(tangent);
+  let b = normalize(bitangent);
+  let n = normalize(normal);
+  let tbn = mat3x3<f32>(t, b, n);
+  return normalize(tbn * sampled);
+}
+
+@fragment
 fn fs(input : VertexOutput) -> @location(0) vec4<f32> {
-  let sampledColor = textureSample(baseColorTexture, baseColorSampler, input.uv);
-  let baseColor = sampledColor * material.baseColorFactor;
-  return vec4<f32>(baseColor.rgb, baseColor.a);
+  let viewVector = scene.cameraPos.xyz - input.worldPos;
+  let viewLength = length(viewVector);
+  let V = viewLength > 1e-5 ? viewVector / viewLength : vec3<f32>(0.0, 0.0, 1.0);
+  let baseSample = textureSample(baseColorTexture, baseColorSampler, input.uv);
+  let baseColorSample = baseSample * material.baseColorFactor;
+  let baseColor = baseColorSample.rgb;
+  let alpha = baseColorSample.a;
+
+  let mrSample = textureSample(metallicRoughnessTexture, metallicRoughnessSampler, input.uv);
+  let roughnessFactor = clamp(material.params.x, 0.045, 1.0);
+  let metallicFactor = clamp(material.params.y, 0.0, 1.0);
+  let roughness = clamp(mrSample.g * roughnessFactor, 0.045, 1.0);
+  let metallic = clamp(mrSample.b * metallicFactor, 0.0, 1.0);
+
+  let aoSample = textureSample(occlusionTexture, occlusionSampler, input.uv).r;
+  let aoStrength = clamp(material.emissiveOcclusion.w, 0.0, 1.0);
+  let ao = mix(1.0, aoSample, aoStrength);
+
+  let emissiveSample = textureSample(emissiveTexture, emissiveSampler, input.uv).rgb;
+  let emissive = emissiveSample * material.emissiveOcclusion.rgb;
+
+  let N = applyNormalMap(input.normal, input.tangent, input.bitangent, input.uv);
+  let lightVector = -scene.sunDirection.xyz;
+  let lightLength = length(lightVector);
+  let L = lightLength > 1e-5 ? lightVector / lightLength : vec3<f32>(0.0, 1.0, 0.0);
+  let halfVector = V + L;
+  let halfLength = length(halfVector);
+  let H = halfLength > 1e-5 ? halfVector / halfLength : N;
+
+  let NdotL = max(dot(N, L), 0.0);
+  let NdotV = max(dot(N, V), 0.0);
+  let NdotH = max(dot(N, H), 0.0);
+  let VdotH = max(dot(V, H), 0.0);
+
+  let F0 = mix(vec3<f32>(0.04), baseColor, metallic);
+  let F = fresnelSchlick(VdotH, F0);
+  let D = distributionGGX(NdotH, roughness);
+  let G = geometrySmith(NdotV, NdotL, roughness);
+
+  let numerator = F * (D * G);
+  let denominator = max(4.0 * NdotV * NdotL, 1e-4);
+  let specular = numerator / denominator;
+
+  let ks = F;
+  let kd = (vec3<f32>(1.0) - ks) * (1.0 - metallic);
+  let diffuse = kd * baseColor / 3.14159265359;
+
+  let sunColor = scene.sunColor.rgb * scene.sunColor.w;
+  let radiance = sunColor;
+  let Lo = (diffuse + specular) * radiance * NdotL;
+
+  let ambientLight = scene.ambientColor.rgb * scene.ambientColor.w;
+  let ambient = ambientLight * baseColor * ao;
+
+  let color = ambient + Lo + emissive;
+  return vec4<f32>(color, alpha);
 }
