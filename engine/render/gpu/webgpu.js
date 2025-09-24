@@ -1,4 +1,3 @@
-import { GetService } from '../../core/index.js';
 import FrameGraph from '../framegraph/index.js';
 import ClearPass from '../passes/clearPass.js';
 import SkyPass from '../passes/skyPass.js';
@@ -8,6 +7,7 @@ import ACESPass from '../passes/acesPass.js';
 import FXAAPass from '../passes/fxaaPass.js';
 import Materials from '../materials/registry.js';
 import { setGPUAdapterName, updateFrameMetrics } from '../framegraph/stats.js';
+import { RunService } from '../../services/RunService.js';
 
 export async function initWebGPU(canvas) {
   if (!navigator.gpu) {
@@ -42,8 +42,6 @@ export async function initWebGPU(canvas) {
   frameGraph.addPass(fxaaPass);
   await frameGraph.init();
 
-  const runService = GetService('RunService');
-
   let last = performance.now() / 1000;
 
   function frame(ts) {
@@ -53,7 +51,9 @@ export async function initWebGPU(canvas) {
 
     updateFrameMetrics(dt);
 
-    runService._step(dt);
+    if (typeof RunService._step === 'function') {
+      RunService._step();
+    }
 
     const width = canvas.clientWidth * devicePixelRatio;
     const height = canvas.clientHeight * devicePixelRatio;
@@ -74,8 +74,6 @@ export async function initWebGPU(canvas) {
     }
 
     frameGraph.render();
-
-    runService._heartbeat(dt);
 
     requestAnimationFrame(frame);
   }

@@ -1,50 +1,52 @@
-import { Signal } from '../core/signal.js';
+import { Signal } from "../core/signal.js";
+import { nowMs } from "../core/env.js";
 
-export default class RunService {
+class _RunService {
   constructor() {
     this.Heartbeat = new Signal();
     this.RenderStepped = new Signal();
     this.Stepped = new Signal();
 
-    this._time = 0;
-    this._steps = [];
+    this._renderBindings = []; // { name, priority, fn }
+    this._last = null;
+    this._running = true; // drive by renderer
+  }
 
-    this.BindToRenderStep = (name, priority, fn) => {
-      this.UnbindFromRenderStep(name);
-      this._steps.push({ name, priority, fn });
-      this._steps.sort((a, b) => a.priority - b.priority);
-    };
+  BindToRenderStep(name, priority, fn) {
+    if (this._renderBindings.find(b => b.name === name)) {
+      throw new Error(`[RunService] Binding '${name}' already exists`);
+    }
+    this._renderBindings.push({ name, priority, fn });
+    this._renderBindings.sort((a, b) => a.priority - b.priority);
+  }
 
-    this.UnbindFromRenderStep = name => {
-      const idx = this._steps.findIndex(s => s.name === name);
-      if (idx !== -1) this._steps.splice(idx, 1);
-    };
+  UnbindFromRenderStep(name) {
+    this._renderBindings = this._renderBindings.filter(b => b.name !== name);
+  }
 
-    this._step = dt => {
-      this._time += dt;
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('RunService Stepped');
-      }
-      this.Stepped.Fire(this._time, dt);
-      for (const step of this._steps) {
-        try {
-          step.fn(dt);
-        } catch (e) {
-          console.error(e);
-        }
-      }
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('RunService RenderStepped');
+  // Called once per animation frame by renderer
+  _step() {
+    const t = nowMs();
+    const last = this._last ?? t;
+    let dt = (t - last) / 1000;
+    // Clamp dt to avoid long stalls exploding simulations
+    if (!isFinite(dt) || dt < 0) dt = 0;
+    if (dt > 0.25) dt = 0.25;
+    this._last = t;
+
+    // Classic order: Stepped -> bound render steps -> RenderStepped -> Heartbeat
+    try {
+      this.Stepped.Fire(t, dt);
+      for (const b of this._renderBindings) {
+        b.fn(dt);
       }
       this.RenderStepped.Fire(dt);
-    };
-
-    this._heartbeat = dt => {
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('RunService Heartbeat');
-      }
       this.Heartbeat.Fire(dt);
-    };
+    } catch (err) {
+      // Surface but do not break the loop
+      console.error("[RunService] step error", err);
+    }
   }
 }
 
+export const RunService = new _RunService();

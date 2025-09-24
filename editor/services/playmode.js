@@ -3,7 +3,7 @@ import Lighting from '../../engine/services/Lighting.js';
 import CollectionService from '../../engine/services/CollectionService.js';
 import TweenService from '../../engine/services/TweenService.js';
 import UserInputService from '../../engine/services/UserInputService.js';
-import RunService from '../../engine/services/RunService.js';
+import { RunService } from '../../engine/services/RunService.js';
 import PhysicsService from '../../engine/services/PhysicsService.js';
 import { Signal } from '../../engine/core/signal.js';
 import { deserialize } from '../../engine/scene/deserialize.js';
@@ -146,9 +146,9 @@ function createServiceRegistry() {
   });
   services.set('UserInputService', userInputService);
 
-  const runServiceImpl = new RunService();
-  const runService = new Instance('RunService');
-  Object.assign(runService, runServiceImpl);
+  const runService = new RunService.constructor();
+  runService.Name = 'RunService';
+  runService.ClassName = 'RunService';
   services.set('RunService', runService);
 
   const physicsService = new PhysicsService();
@@ -198,24 +198,12 @@ function patchConsole() {
   };
 }
 
-function nowSeconds() {
-  if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
-    return performance.now() / 1000;
-  }
-  return Date.now() / 1000;
-}
-
 function startRunLoop(runService) {
-  if (!runService) return null;
+  if (!runService || typeof runService._step !== 'function') return null;
 
-  const step = dt => {
+  const step = () => {
     try {
-      if (typeof runService._step === 'function') {
-        runService._step(dt);
-      }
-      if (typeof runService._heartbeat === 'function') {
-        runService._heartbeat(dt);
-      }
+      runService._step();
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error('[PLAY] RunService loop error', err);
@@ -224,12 +212,8 @@ function startRunLoop(runService) {
 
   if (typeof requestAnimationFrame === 'function' && typeof cancelAnimationFrame === 'function') {
     let rafId = null;
-    let last = nowSeconds();
-    const frame = timestamp => {
-      const now = typeof timestamp === 'number' ? timestamp / 1000 : nowSeconds();
-      const dt = Math.max(0, now - last);
-      last = now;
-      step(dt);
+    const frame = () => {
+      step();
       rafId = requestAnimationFrame(frame);
     };
     rafId = requestAnimationFrame(frame);
@@ -238,9 +222,7 @@ function startRunLoop(runService) {
     };
   }
 
-  const interval = setInterval(() => {
-    step(1 / 60);
-  }, 1000 / 60);
+  const interval = setInterval(step, 1000 / 60);
   return () => clearInterval(interval);
 }
 
