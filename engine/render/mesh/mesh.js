@@ -92,9 +92,27 @@ function getIndexFormat(array) {
 export default class Mesh {
   constructor(device, primitives = []) {
     this.device = device;
+    this._cpuPrimitives = primitives.map(primitive => this._cloneCPUPrimitive(primitive));
     this.primitives = primitives.map(primitive => this._createPrimitive(primitive));
     this.bounds = null;
     this._computeMeshBounds();
+  }
+
+  _cloneCPUPrimitive({ vertexData, indexData = null, materialId = null }) {
+    const clone = {
+      vertexData: vertexData ? new Float32Array(vertexData) : null,
+      indexData: null,
+      indexType: null,
+      materialId: materialId ?? null,
+    };
+
+    if (indexData && indexData.length) {
+      const ctor = indexData.constructor;
+      clone.indexData = new ctor(indexData);
+      clone.indexType = getIndexFormat(indexData);
+    }
+
+    return clone;
   }
 
   _createPrimitive({ vertexData, indexData = null, materialId = null }) {
@@ -134,6 +152,21 @@ export default class Mesh {
     };
   }
 
+  getCPUPrimitives() {
+    if (!Array.isArray(this._cpuPrimitives)) {
+      return [];
+    }
+    return this._cpuPrimitives.map(primitive => ({
+      vertexData: primitive.vertexData ? new Float32Array(primitive.vertexData) : null,
+      indexData:
+        primitive.indexData && primitive.indexData.constructor
+          ? new primitive.indexData.constructor(primitive.indexData)
+          : null,
+      indexType: primitive.indexType || (primitive.indexData ? getIndexFormat(primitive.indexData) : null),
+      materialId: primitive.materialId ?? null,
+    }));
+  }
+
   _computeMeshBounds() {
     let combined = null;
     for (const primitive of this.primitives) {
@@ -155,6 +188,9 @@ export default class Mesh {
       }
     }
     this.primitives.length = 0;
+    if (Array.isArray(this._cpuPrimitives)) {
+      this._cpuPrimitives.length = 0;
+    }
   }
 }
 

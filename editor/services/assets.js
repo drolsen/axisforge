@@ -192,6 +192,14 @@ export class AssetRegistry {
   list() {
     return this.assets.map(cloneAsset);
   }
+
+  getByGuid(guid) {
+    if (!guid) {
+      return null;
+    }
+    const asset = this.assets.find(entry => entry.guid === guid);
+    return asset ? cloneAsset(asset) : null;
+  }
 }
 
 export class AssetService {
@@ -234,6 +242,11 @@ export class AssetService {
 
   getURI(asset) {
     return `assets://${asset.logicalPath}`;
+  }
+
+  async get(guid) {
+    await this.ready;
+    return this.registry.getByGuid(guid);
   }
 }
 
