@@ -1,6 +1,7 @@
 import { initWebGPU } from '../../engine/render/gpu/webgpu.js';
 import { GetService } from '../../engine/core/index.js';
 import { startPlay, stopPlay } from './playmode.js';
+import { initEditorCamera } from './cameraEditor.js';
 
 function styleButton(button) {
   button.style.border = 'none';
@@ -107,7 +108,8 @@ export function initViewport() {
   document.body.appendChild(canvas);
   const toolbar = createToolbar();
   document.body.appendChild(toolbar);
-  initWebGPU(canvas);
   const UIS = GetService('UserInputService');
   UIS.AttachCanvas(canvas);
+  initEditorCamera(canvas);
+  initWebGPU(canvas);
 }
