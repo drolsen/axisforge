@@ -1,6 +1,6 @@
 import { initWebGPU } from '../../engine/render/gpu/webgpu.js';
 import { GetService } from '../../engine/core/index.js';
-import { startPlay, stopPlay, isPlaying, onPlayStateChange } from './playmode.js';
+import { startPlay, stopPlay } from './playmode.js';
 
 function styleButton(button) {
   button.style.border = 'none';
@@ -57,8 +57,9 @@ function createToolbar() {
     button.style.cursor = button.disabled ? 'default' : 'pointer';
   };
 
+  let playing = false;
+
   const updateButtons = () => {
-    const playing = isPlaying();
     playButton.disabled = playing;
     stopButton.disabled = !playing;
     syncButtonState(playButton);
@@ -67,26 +68,33 @@ function createToolbar() {
   };
 
   playButton.addEventListener('click', async () => {
-    if (isPlaying()) return;
+    if (playing) return;
     playButton.disabled = true;
     syncButtonState(playButton);
     try {
-      await startPlay();
+      await startPlay('/game/main.client.js');
+      playing = true;
     } catch (err) {
       console.error('[PLAY] Failed to start play mode', err);
+      playing = false;
     } finally {
       updateButtons();
     }
   });
 
-  stopButton.addEventListener('click', () => {
-    stopPlay();
-    updateButtons();
+  stopButton.addEventListener('click', async () => {
+    if (!playing) return;
+    stopButton.disabled = true;
+    syncButtonState(stopButton);
+    try {
+      await stopPlay();
+    } finally {
+      playing = false;
+      updateButtons();
+    }
   });
 
   updateButtons();
-  const disconnect = onPlayStateChange(updateButtons);
-  window.addEventListener('beforeunload', () => disconnect(), { once: true });
 
   container.appendChild(playButton);
   container.appendChild(stopButton);
