@@ -6,6 +6,8 @@ import ShadowMapPass from '../lighting/shadowMapPass.js';
 import HDRTarget from '../post/hdr.js';
 import ACESPass from '../passes/acesPass.js';
 import FXAAPass from '../passes/fxaaPass.js';
+import DepthNormalPass from '../passes/depthNormalPass.js';
+import SSAOPass from '../post/ssao.js';
 import Materials from '../materials/registry.js';
 import { setGPUAdapterName, updateFrameMetrics } from '../framegraph/stats.js';
 import { RunService } from '../../services/RunService.js';
@@ -33,15 +35,26 @@ export async function initWebGPU(canvas) {
   const hdrTarget = new HDRTarget(device);
   const frameGraph = new FrameGraph(device, context);
   const shadowPass = new ShadowMapPass(device, () => hdrTarget.getSize());
+  const depthNormalPass = new DepthNormalPass(device, () => hdrTarget.getSize());
   const clearPass = new ClearPass(device, () => hdrTarget.getView());
   const skyPass = new SkyPass(device, 'rgba16float', () => hdrTarget.getView());
-  const meshPass = new MeshPass(device, 'rgba16float', () => hdrTarget.getView(), () => hdrTarget.getSize());
+  const ssaoPass = new SSAOPass(device, depthNormalPass);
+  const meshPass = new MeshPass(
+    device,
+    'rgba16float',
+    () => hdrTarget.getView(),
+    () => hdrTarget.getSize(),
+    () => depthNormalPass.getDepthView(),
+    () => ssaoPass.getResources(),
+  );
   const acesPass = new ACESPass(device, hdrTarget, 'rgba16float');
   const fxaaPass = new FXAAPass(device, acesPass, format);
 
   frameGraph.addPass(shadowPass);
+  frameGraph.addPass(depthNormalPass);
   frameGraph.addPass(clearPass);
   frameGraph.addPass(skyPass);
+  frameGraph.addPass(ssaoPass);
   frameGraph.addPass(meshPass);
   frameGraph.addPass(acesPass);
   frameGraph.addPass(fxaaPass);
@@ -69,6 +82,8 @@ export async function initWebGPU(canvas) {
     }
 
     const hdrChanged = hdrTarget.resize(width, height);
+    const depthChanged = depthNormalPass.resize(width, height);
+    const ssaoChanged = ssaoPass.resize(width, height);
     const acesChanged = acesPass.resize(width, height);
     fxaaPass.resize(width, height);
     if (hdrChanged) {
@@ -76,6 +91,10 @@ export async function initWebGPU(canvas) {
     }
     if (acesChanged || hdrChanged) {
       fxaaPass.bindGroupDirty = true;
+    }
+    if (depthChanged || ssaoChanged) {
+      meshPass.sceneBindGroupDirty = true;
+      ssaoPass.bindGroupDirty = true;
     }
 
     frameGraph.render();

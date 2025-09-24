@@ -26,6 +26,8 @@ struct InstanceUniform {
 @group(0) @binding(0) var<uniform> scene : SceneUniform;
 @group(0) @binding(1) var shadowMap : texture_depth_2d_array;
 @group(0) @binding(2) var shadowSampler : sampler_comparison;
+@group(0) @binding(3) var ssaoTexture : texture_2d<f32>;
+@group(0) @binding(4) var ssaoSampler : sampler;
 
 @group(1) @binding(0) var<uniform> material : MaterialUniform;
 @group(1) @binding(1) var baseColorTexture : texture_2d<f32>;
@@ -55,13 +57,15 @@ struct VertexOutput {
   @location(2) uv : vec2<f32>,
   @location(3) tangent : vec3<f32>,
   @location(4) bitangent : vec3<f32>,
+  @location(5) screenUV : vec2<f32>,
 };
 
 @vertex
 fn vs(input : VertexInput) -> VertexOutput {
   var output : VertexOutput;
   let world = instanceUniform.model * vec4<f32>(input.position, 1.0);
-  output.position = scene.viewProj * world;
+  let clip = scene.viewProj * world;
+  output.position = clip;
   output.worldPos = world.xyz;
   let normalWorld = normalize((instanceUniform.normal * vec4<f32>(input.normal, 0.0)).xyz);
   var tangentWorld = (instanceUniform.normal * vec4<f32>(input.tangent.xyz, 0.0)).xyz;
@@ -71,6 +75,9 @@ fn vs(input : VertexInput) -> VertexOutput {
   output.tangent = tangentWorld;
   output.bitangent = bitangentWorld;
   output.uv = input.uv;
+  let w = max(abs(clip.w), 1e-5);
+  let ndc = clip.xy / w;
+  output.screenUV = ndc * 0.5 + vec2<f32>(0.5);
   return output;
 }
 
@@ -180,6 +187,10 @@ fn fs(input : VertexOutput) -> @location(0) vec4<f32> {
   let emissiveSample = textureSample(emissiveTexture, emissiveSampler, input.uv).rgb;
   let emissive = emissiveSample * material.emissiveOcclusion.rgb;
 
+  let uvScreen = clamp(input.screenUV, vec2<f32>(0.0), vec2<f32>(0.9999));
+  let ssaoValue = textureSample(ssaoTexture, ssaoSampler, uvScreen).r;
+  let combinedAO = clamp(ao * ssaoValue, 0.0, 1.0);
+
   let N = applyNormalMap(input.normal, input.tangent, input.bitangent, input.uv);
   let lightVector = -scene.sunDirection.xyz;
   let lightLength = length(lightVector);
@@ -209,10 +220,10 @@ fn fs(input : VertexOutput) -> @location(0) vec4<f32> {
   let sunColor = scene.sunColor.rgb * scene.sunColor.w;
   let radiance = sunColor;
   let shadowFactor = computeShadowFactor(input.worldPos, N, L);
-  let Lo = (diffuse + specular) * radiance * NdotL * shadowFactor;
+  let Lo = (diffuse + specular) * radiance * NdotL * shadowFactor * combinedAO;
 
   let ambientLight = scene.ambientColor.rgb * scene.ambientColor.w;
-  let ambient = ambientLight * baseColor * ao;
+  let ambient = ambientLight * baseColor * combinedAO;
 
   let color = ambient + Lo + emissive;
   return vec4<f32>(color, alpha);
