@@ -33,4 +33,8 @@ export default class HDRTarget {
   getView() {
     return this.view;
   }
+
+  getSize() {
+    return { width: this.width, height: this.height };
+  }
 }

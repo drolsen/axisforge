@@ -8,6 +8,7 @@ import FXAAPass from '../passes/fxaaPass.js';
 import Materials from '../materials/registry.js';
 import { setGPUAdapterName, updateFrameMetrics } from '../framegraph/stats.js';
 import { RunService } from '../../services/RunService.js';
+import { setDevice } from './device.js';
 
 export async function initWebGPU(canvas) {
   if (!navigator.gpu) {
@@ -21,6 +22,7 @@ export async function initWebGPU(canvas) {
   }
   setGPUAdapterName(adapter.name || 'Unknown GPU');
   const device = await adapter.requestDevice();
+  setDevice(device);
   const context = canvas.getContext('webgpu');
   const format = navigator.gpu.getPreferredCanvasFormat();
   context.configure({ device, format });
@@ -31,7 +33,7 @@ export async function initWebGPU(canvas) {
   const frameGraph = new FrameGraph(device, context);
   const clearPass = new ClearPass(device, () => hdrTarget.getView());
   const skyPass = new SkyPass(device, 'rgba16float', () => hdrTarget.getView());
-  const meshPass = new MeshPass(device, 'rgba16float', () => hdrTarget.getView());
+  const meshPass = new MeshPass(device, 'rgba16float', () => hdrTarget.getView(), () => hdrTarget.getSize());
   const acesPass = new ACESPass(device, hdrTarget, 'rgba16float');
   const fxaaPass = new FXAAPass(device, acesPass, format);
 
