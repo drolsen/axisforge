@@ -1,59 +1,17 @@
 
 import { DockArea, STORAGE_KEY as LAYOUT_STORAGE_KEY } from '../ui/dock/dock.js';
+import { ROBLOX_LAYOUT } from '../ui/dock/defaultLayout.js';
 import { startPlay, stopPlay } from '../services/playmode.js';
 import { CommandRegistry } from '../ui/commands.js';
 import { Menubar } from '../ui/menubar.js';
 import { HotkeyManager } from '../ui/hotkeys.js';
 import StatusBar from '../ui/statusbar.js';
 import { showToast } from '../ui/toast.js';
+import LayoutPresetsPane from '../panes/layoutPresets.js';
 
 const THEME_STORAGE_KEY = 'axisforge.theme';
 
-export const DEFAULT_LAYOUT = {
-  type: 'split',
-  direction: 'horizontal',
-  sizes: [0.22, 0.78],
-  children: [
-    {
-      type: 'stack',
-      id: 'stack-explorer',
-      tabs: ['explorer', 'assets'],
-      active: 'explorer',
-    },
-    {
-      type: 'split',
-      direction: 'vertical',
-      sizes: [0.68, 0.32],
-      children: [
-        {
-          type: 'stack',
-          id: 'stack-viewport',
-          tabs: ['viewport'],
-          active: 'viewport',
-        },
-        {
-          type: 'split',
-          direction: 'horizontal',
-          sizes: [0.5, 0.5],
-          children: [
-            {
-              type: 'stack',
-              id: 'stack-console',
-              tabs: ['console'],
-              active: 'console',
-            },
-            {
-              type: 'stack',
-              id: 'stack-properties',
-              tabs: ['properties'],
-              active: 'properties',
-            },
-          ],
-        },
-      ],
-    },
-  ],
-};
+export const DEFAULT_LAYOUT = ROBLOX_LAYOUT;
 
 function countPanes(node) {
   if (!node) return 0;
@@ -114,6 +72,24 @@ export class EditorShell {
       this._setStatus('Layout saved', 'positive', 1200);
       this._syncViewCommands();
     };
+
+    this.layoutPresets = new LayoutPresetsPane({
+      dock: this.dock,
+      onLayoutApplied: () => {
+        this._syncViewCommands();
+        this._updateLayoutInfo();
+      },
+      onPresetSaved: () => {
+        this._updateLayoutInfo();
+      },
+      onPresetDeleted: () => {
+        this._updateLayoutInfo();
+      },
+      onReset: () => {
+        this._syncViewCommands();
+        this._updateLayoutInfo();
+      },
+    });
 
     this._registerShellCommands();
 
@@ -278,6 +254,15 @@ export class EditorShell {
         this._setStatus('Layout reset', 'positive', 1600);
         this._syncViewCommands();
         this._updateLayoutInfo();
+      },
+    });
+    this.commands.registerCommand({
+      id: 'view.manageLayouts',
+      title: 'Layout Presets…',
+      menu: 'view',
+      order: 100,
+      run: () => {
+        this.layoutPresets?.open?.();
       },
     });
 

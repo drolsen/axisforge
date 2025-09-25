@@ -1,5 +1,6 @@
 
 const STORAGE_KEY = 'axisforge.layout.v1';
+export const PRESET_STORAGE_KEY = 'axisforge.layout.presets.v1';
 let stackIdCounter = 0;
 
 function generateStackId() {
@@ -395,6 +396,28 @@ export class DockArea {
     }
   }
 
+  serializeLayout() {
+    return this.layout ? cloneLayout(this.layout) : null;
+  }
+
+  deserializeLayout(layout, { save = true } = {}) {
+    if (!layout) return false;
+    const cloned = cloneLayout(layout);
+    const pruned = pruneLayout(cloned, this.panes);
+    const normalized = normalizeLayout(pruned);
+    if (!normalized) return false;
+    this.layout = normalized;
+    this.render();
+    if (save) {
+      this.persistLayout();
+    }
+    return true;
+  }
+
+  getDefaultLayout() {
+    return this.defaultLayout ? cloneLayout(this.defaultLayout) : null;
+  }
+
   updateLayout(updater, { save = true } = {}) {
     const next = normalizeLayout(updater(this.layout));
     if (!next) return;
@@ -433,9 +456,7 @@ export class DockArea {
 
   resetToDefault() {
     if (!this.defaultLayout) return;
-    this.layout = cloneLayout(this.defaultLayout);
-    this.render();
-    this.persistLayout();
+    this.deserializeLayout(this.defaultLayout, { save: true });
   }
 
   isPaneVisible(paneId) {
