@@ -53,12 +53,13 @@ function createPlaceholderInstance(className) {
 }
 
 export default class Explorer {
-  constructor(undo = new UndoService(), selection = new Selection()) {
+  constructor(undo = new UndoService(), selection = new Selection(), options = {}) {
     this.undo = undo;
     this.selection = selection;
     this._suspendSelection = false;
     this._connections = new Map();
     this._serviceSet = new Set();
+    this._createPart = typeof options.createPart === 'function' ? options.createPart : null;
 
     this.hasDOM = typeof document !== 'undefined' && typeof document.createElement === 'function';
     this._registered = new Set();
@@ -73,6 +74,17 @@ export default class Explorer {
       this.searchInput.type = 'search';
       this.searchInput.placeholder = 'Search instances…';
       this.search.appendChild(this.searchInput);
+
+      this.insertButton = document.createElement('button');
+      this.insertButton.type = 'button';
+      this.insertButton.className = 'explorer-pane__insert';
+      this.insertButton.textContent = '+ Part';
+      this.insertButton.title = 'Insert a block part';
+      this.insertButton.addEventListener('click', () => {
+        this._createChild('Part', this.selection.get()[0] ?? null);
+      });
+      this.search.appendChild(this.insertButton);
+
       this.element.appendChild(this.search);
 
       this.treeHost = document.createElement('div');
@@ -605,7 +617,7 @@ export default class Explorer {
         children: [
           { label: 'Model', action: () => this._createChild('Model', node) },
           { label: 'Folder', action: () => this._createChild('Folder', node) },
-          { label: 'Part', action: () => this._createChild('Part', node) },
+          { label: 'Part (Block)', action: () => this._createChild('Part', node) },
         ],
       },
       { type: 'separator' },
@@ -622,12 +634,31 @@ export default class Explorer {
     ];
   }
 
-  _createChild(className, anchor) {
+  _getParentForNewChild(anchor) {
     const selection = this.selection.get();
     let parent = anchor ?? selection[0] ?? getWorkspace();
     if (!parent || isDescendant(parent, anchor)) {
       parent = getWorkspace();
     }
+    return parent;
+  }
+
+  _createChild(className, anchor) {
+    const parent = this._getParentForNewChild(anchor);
+    if (className === 'Part' && this._createPart) {
+      const part = this._createPart(parent);
+      if (!part) {
+        return;
+      }
+      this.undo.execute(this.undo.createInstance(part, parent));
+      this.tree.expand(parent);
+      this.selection.set([part]);
+      this.tree.setSelection([part]);
+      this.tree.refresh();
+      this.tree.beginRename(part);
+      return;
+    }
+
     const instance = createPlaceholderInstance(className);
     this.undo.execute(this.undo.createInstance(instance, parent));
     this.tree.expand(parent);

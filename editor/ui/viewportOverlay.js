@@ -1,50 +1,69 @@
 import { formatShortcut } from './hotkeys.js';
 
-function createLabel(text) {
-  const label = document.createElement('span');
-  label.className = 'viewport-overlay__label';
-  label.textContent = text;
-  return label;
+function createIcon(name) {
+  const span = document.createElement('span');
+  span.className = `icon icon--${name}`;
+  return span;
 }
 
-function createButton(text, { hotkey = '', onClick = null, className = '' } = {}) {
+function createButton({ icon = null, text = '', title = '', hotkey = '', onClick = null } = {}) {
   const button = document.createElement('button');
   button.type = 'button';
-  button.className = ['viewport-overlay__button', className].filter(Boolean).join(' ');
-  button.textContent = text;
-  if (hotkey) {
-    button.dataset.hotkey = formatShortcut(hotkey);
+  button.className = 'btn';
+
+  if (icon) {
+    button.appendChild(createIcon(icon));
   }
+
+  if (text) {
+    const label = document.createElement('span');
+    label.textContent = text;
+    button.appendChild(label);
+  }
+
+  const parts = [];
+  if (title) parts.push(title);
+  if (hotkey) parts.push(`(${formatShortcut(hotkey)})`);
+  if (parts.length) {
+    button.title = parts.join(' ');
+    button.setAttribute('aria-label', parts.join(' '));
+  }
+
   if (typeof onClick === 'function') {
     button.addEventListener('click', event => {
       event.preventDefault();
       onClick(event);
     });
   }
+
   return button;
 }
 
-function createDivider() {
-  const divider = document.createElement('div');
-  divider.className = 'viewport-overlay__divider';
-  return divider;
+function createGroup(label) {
+  const group = document.createElement('div');
+  group.className = 'group';
+  if (label) {
+    const hidden = document.createElement('span');
+    hidden.className = 'label';
+    hidden.textContent = label;
+    group.appendChild(hidden);
+  }
+  return group;
 }
 
-function createSnapGroup(title, type, options, gizmos) {
-  const group = document.createElement('div');
-  group.className = 'viewport-overlay__group';
-  group.appendChild(createLabel(title));
-
+function createSnapGroup(label, type, options, gizmos) {
+  const group = createGroup(label);
   const map = new Map();
   for (const option of options) {
     const value = option.value;
-    const button = createButton(option.label, {
+    const button = createButton({
+      text: option.label,
+      title: `${label} ${option.label}`,
       onClick: () => gizmos?.toggleSnapValue?.(type, value),
     });
     map.set(value, button);
     group.appendChild(button);
   }
-
   return { element: group, buttons: map };
 }
 
@@ -52,101 +71,88 @@ export function createViewportOverlay({ mount, gizmos, onFocus } = {}) {
   const overlay = document.createElement('div');
   overlay.className = 'viewport-overlay';
 
-  const topBar = document.createElement('div');
-  topBar.className = 'viewport-overlay__top-bar';
-  overlay.appendChild(topBar);
+  const bar = document.createElement('div');
+  bar.className = 'vpbar';
+  overlay.appendChild(bar);
 
   const tint = document.createElement('div');
   tint.className = 'viewport-overlay__selection-tint';
   overlay.appendChild(tint);
 
-  const toolGroup = document.createElement('div');
-  toolGroup.className = 'viewport-overlay__group';
-  toolGroup.appendChild(createLabel('Tool'));
-
+  const toolGroup = createGroup('Tool');
   const tools = {
-    select: createButton('Select', {
-      hotkey: 'Q',
-      onClick: () => gizmos?.setToolMode?.('select'),
-    }),
-    move: createButton('Move', {
-      hotkey: 'W',
-      onClick: () => gizmos?.setToolMode?.('move'),
-    }),
-    rotate: createButton('Rotate', {
-      hotkey: 'E',
-      onClick: () => gizmos?.setToolMode?.('rotate'),
-    }),
-    scale: createButton('Scale', {
-      hotkey: 'R',
-      onClick: () => gizmos?.setToolMode?.('scale'),
-    }),
+    select: createButton({ icon: 'tool-select', title: 'Select Tool', hotkey: 'Q', onClick: () => gizmos?.setToolMode?.('select') }),
+    move: createButton({ icon: 'tool-move', title: 'Move Tool', hotkey: 'W', onClick: () => gizmos?.setToolMode?.('move') }),
+    rotate: createButton({ icon: 'tool-rotate', title: 'Rotate Tool', hotkey: 'E', onClick: () => gizmos?.setToolMode?.('rotate') }),
+    scale: createButton({ icon: 'tool-scale', title: 'Scale Tool', hotkey: 'R', onClick: () => gizmos?.setToolMode?.('scale') }),
   };
 
-  Object.values(tools).forEach(button => {
-    toolGroup.appendChild(button);
-  });
-
-  topBar.appendChild(toolGroup);
-  topBar.appendChild(createDivider());
+  Object.values(tools).forEach(button => toolGroup.appendChild(button));
+  bar.appendChild(toolGroup);
 
   const translateSnap = createSnapGroup('Move Snap', 'translate', [
-    { value: 1, label: '1 m' },
-    { value: 0.5, label: '0.5 m' },
-    { value: 0.1, label: '0.1 m' },
+    { value: 1, label: '1m' },
+    { value: 0.5, label: '0.5' },
+    { value: 0.1, label: '0.1' },
   ], gizmos);
-  topBar.appendChild(translateSnap.element);
+  bar.appendChild(translateSnap.element);
 
-  const rotateSnap = createSnapGroup('Rotate', 'rotate', [
+  const rotateSnap = createSnapGroup('Rotate Snap', 'rotate', [
     { value: 45, label: '45°' },
     { value: 15, label: '15°' },
     { value: 5, label: '5°' },
   ], gizmos);
-  topBar.appendChild(rotateSnap.element);
+  bar.appendChild(rotateSnap.element);
 
-  const scaleSnap = createSnapGroup('Scale', 'scale', [
+  const scaleSnap = createSnapGroup('Scale Snap', 'scale', [
     { value: 0.1, label: '0.1' },
     { value: 0.01, label: '0.01' },
   ], gizmos);
-  topBar.appendChild(scaleSnap.element);
+  bar.appendChild(scaleSnap.element);
 
-  topBar.appendChild(createDivider());
-
-  const spaceGroup = document.createElement('div');
-  spaceGroup.className = 'viewport-overlay__group';
-  spaceGroup.appendChild(createLabel('Space'));
-  const globalButton = createButton('Global', {
+  const spaceGroup = createGroup('Transform Space');
+  const globalButton = createButton({
+    icon: 'space-global',
+    title: 'Global Space',
+    hotkey: 'T',
     onClick: () => gizmos?.setTransformSpace?.('global'),
   });
-  const localButton = createButton('Local', {
+  const localButton = createButton({
+    icon: 'space-local',
+    title: 'Local Space',
+    hotkey: 'T',
     onClick: () => gizmos?.setTransformSpace?.('local'),
   });
   spaceGroup.append(globalButton, localButton);
-  topBar.appendChild(spaceGroup);
+  bar.appendChild(spaceGroup);
 
-  const pivotGroup = document.createElement('div');
-  pivotGroup.className = 'viewport-overlay__group';
-  pivotGroup.appendChild(createLabel('Pivot'));
-  const pivotButton = createButton('Pivot', {
+  const pivotGroup = createGroup('Pivot Mode');
+  const pivotButton = createButton({
+    icon: 'pivot-pivot',
+    title: 'Pivot Origin',
+    hotkey: 'Y',
     onClick: () => gizmos?.setPivotMode?.('pivot'),
   });
-  const centerButton = createButton('Center', {
+  const centerButton = createButton({
+    icon: 'pivot-center',
+    title: 'Center Pivot',
+    hotkey: 'Y',
     onClick: () => gizmos?.setPivotMode?.('center'),
   });
   pivotGroup.append(pivotButton, centerButton);
-  topBar.appendChild(pivotGroup);
+  bar.appendChild(pivotGroup);
 
-  topBar.appendChild(createDivider());
-
-  const focusButton = createButton('Focus', {
-    className: 'viewport-overlay__focus-button',
+  const focusButton = createButton({
+    icon: 'focus-camera',
+    title: 'Focus Selection',
     hotkey: 'F',
     onClick: () => onFocus?.(),
   });
-  topBar.appendChild(focusButton);
+  bar.appendChild(focusButton);
 
   const updateState = state => {
     if (!state) return;
+
     const mode = state.mode ?? 'select';
     Object.entries(tools).forEach(([key, button]) => {
       const active = key === mode;

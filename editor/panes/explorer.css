@@ -1,18 +1,20 @@
 .explorer-pane {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  padding: 0.5rem 0;
+  gap: var(--pad-1);
+  padding: 0;
   min-height: 0;
 }
 
 .explorer-pane__search {
-  position: relative;
+  display: flex;
+  gap: var(--pad-1);
+  align-items: center;
 }
 
 .explorer-pane__search input {
-  width: 100%;
-  padding: 0.45rem 0.75rem;
+  flex: 1 1 auto;
+  padding: var(--pad-0) var(--pad-1);
   border-radius: 0.45rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(12, 16, 24, 0.85);
@@ -29,6 +31,24 @@
 .explorer-pane__tree {
   flex: 1 1 auto;
   min-height: 0;
+}
+
+.explorer-pane__insert {
+  flex: 0 0 auto;
+  padding: var(--pad-0) var(--pad-1);
+  border-radius: 0.45rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.explorer-pane__insert:hover {
+  background: rgba(91, 139, 255, 0.18);
+  border-color: rgba(91, 139, 255, 0.45);
 }
 
 .explorer-pane__status {

@@ -162,7 +162,7 @@ fn computeShadowFactor(worldPos : vec3<f32>, normal : vec3<f32>, lightDir : vec3
   let texelSize = vec2<f32>(params.y, params.y);
   let bias = baseBias + slopeBias;
   let compareDepth = clamp(depthRef - bias, 0.0, 1.0);
-  let visibility = pcf3x3_array(shadowMap, shadowSampler, uv, i32(cascadeIndex), compareDepth, texelSize);
+  let visibility = pcf3x3_array(uv, i32(cascadeIndex), compareDepth, texelSize);
   return clamp(visibility, 0.0, 1.0);
 }
 
