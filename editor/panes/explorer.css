@@ -1,0 +1,41 @@
+.explorer-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  min-height: 0;
+}
+
+.explorer-pane__search {
+  position: relative;
+}
+
+.explorer-pane__search input {
+  width: 100%;
+  padding: 0.45rem 0.75rem;
+  border-radius: 0.45rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(12, 16, 24, 0.85);
+  color: inherit;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.explorer-pane__search input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(91, 139, 255, 0.45);
+}
+
+.explorer-pane__tree {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.explorer-pane__status {
+  font-size: 0.75rem;
+  color: rgba(245, 247, 251, 0.65);
+}
+
+.explorer-pane__status strong {
+  color: rgba(245, 247, 251, 0.95);
+}
