@@ -153,14 +153,16 @@ fn computeShadowFactor(worldPos : vec3<f32>, normal : vec3<f32>, lightDir : vec3
   let lightSpace = lightMatrix * vec4<f32>(offsetWorld, 1.0);
   let projected = lightSpace.xyz / lightSpace.w;
   let uv = projected.xy * 0.5 + vec2<f32>(0.5);
+  let depthRef = projected.z * 0.5 + 0.5;
 
-  if (!shadowInsideFrustum(uv, projected.z)) {
+  if (!shadowInsideFrustum(uv, depthRef)) {
     return 1.0;
   }
 
-  let compareDepth = clamp(projected.z - (baseBias + slopeBias), 0.0, 1.0);
-  let coords = vec3<f32>(uv, f32(cascadeIndex));
-  let visibility = sampleShadow3x3(shadowMap, shadowSampler, coords, compareDepth);
+  let texelSize = vec2<f32>(params.y, params.y);
+  let bias = baseBias + slopeBias;
+  let compareDepth = clamp(depthRef - bias, 0.0, 1.0);
+  let visibility = pcf3x3_array(shadowMap, shadowSampler, uv, i32(cascadeIndex), compareDepth, texelSize);
   return clamp(visibility, 0.0, 1.0);
 }
 
