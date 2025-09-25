@@ -3,12 +3,13 @@ import Explorer from '../panes/explorer.js';
 import Properties from '../panes/properties.js';
 import ConsolePane from '../panes/console.js';
 import AssetsPane from '../panes/assets.js';
-import { initViewport } from '../services/viewport.js';
+import { initViewport, focusCameraOnBounds } from '../services/viewport.js';
 import { checkForUpdates } from '../services/update-checker.js';
 import UndoService from '../services/undo.js';
 import { Selection } from '../services/selection.js';
-import TranslationGizmo from '../components/gizmos.js';
+import TransformGizmos from '../components/gizmos.js';
 import { EditorShell, DEFAULT_LAYOUT } from './shell.js';
+import { createViewportOverlay } from '../ui/viewportOverlay.js';
 
 function createPanel(title, description) {
   const container = document.createElement('div');
@@ -183,6 +184,17 @@ export function bootstrap() {
   const undo = new UndoService();
   const selection = new Selection();
   const shell = new EditorShell({ selection, undo });
+  const gizmos = new TransformGizmos(selection, undo);
+
+  const focusSelection = () => {
+    const bounds = selection.getBounds?.();
+    if (!bounds) {
+      shell._setStatus('No selection to focus', 'warning', 1200);
+      return;
+    }
+    focusCameraOnBounds(bounds, { duration: 0.45 });
+    shell._setStatus('Framing selection', 'positive', 900);
+  };
 
   const { commands } = shell;
   if (commands) {
@@ -289,12 +301,95 @@ export function bootstrap() {
     updateDirtyFlag();
   }
 
+    commands.registerCommand({
+      id: 'viewport.tool.select',
+      title: 'Select Tool',
+      menu: 'view',
+      order: 110,
+      shortcut: ['Q'],
+      run: () => {
+        gizmos.setToolMode('select');
+      },
+    });
+    commands.registerCommand({
+      id: 'viewport.tool.move',
+      title: 'Move Tool',
+      menu: 'view',
+      order: 120,
+      shortcut: ['W'],
+      run: () => {
+        gizmos.setToolMode('move');
+      },
+    });
+    commands.registerCommand({
+      id: 'viewport.tool.rotate',
+      title: 'Rotate Tool',
+      menu: 'view',
+      order: 130,
+      shortcut: ['E'],
+      run: () => {
+        gizmos.setToolMode('rotate');
+      },
+    });
+    commands.registerCommand({
+      id: 'viewport.tool.scale',
+      title: 'Scale Tool',
+      menu: 'view',
+      order: 140,
+      shortcut: ['R'],
+      run: () => {
+        gizmos.setToolMode('scale');
+      },
+    });
+
+    commands.registerCommand({
+      id: 'viewport.toggle-space',
+      title: 'Toggle Transform Space',
+      menu: 'view',
+      order: 150,
+      shortcut: ['T'],
+      run: () => {
+        selection.toggleTransformSpace();
+      },
+    });
+
+    commands.registerCommand({
+      id: 'viewport.toggle-pivot',
+      title: 'Toggle Pivot Mode',
+      menu: 'view',
+      order: 160,
+      shortcut: ['Y'],
+      run: () => {
+        selection.togglePivotMode();
+      },
+    });
+
+    commands.registerCommand({
+      id: 'view.focus-selection',
+      title: 'Focus on Selection',
+      menu: 'view',
+      order: 170,
+      shortcut: ['F'],
+      run: focusSelection,
+    });
+
+    const syncFocusCommand = () => {
+      commands.setEnabled('view.focus-selection', selection.get().length > 0);
+    };
+    syncFocusCommand();
+    selection.Changed.Connect(syncFocusCommand);
+
+    selection.TransformSettingsChanged.Connect(settings => {
+      const space = settings?.space === 'local' ? 'Local' : 'Global';
+      const pivot = settings?.pivot === 'center' ? 'Center' : 'Pivot';
+      shell._setStatus(`Transform: ${space} • ${pivot}`, 'info', 900);
+    });
+  }
+
   const explorer = new Explorer(undo, selection);
   const properties = new Properties(undo, selection);
   const consolePane = new ConsolePane();
   const assetsPane = new AssetsPane(undefined, { floatingUI: false });
-
-  new TranslationGizmo(selection, undo);
 
   const viewportPane = document.createElement('div');
   viewportPane.className = 'viewport-pane';
@@ -313,6 +408,24 @@ export function bootstrap() {
   shell.initializeLayout(DEFAULT_LAYOUT);
 
   initViewport({ mount: viewportPane });
+  createViewportOverlay({
+    mount: viewportPane,
+    gizmos,
+    onFocus: focusSelection,
+  });
+
+  gizmos.subscribe(state => {
+    if (!state) return;
+    shell.setToolMode(state.mode);
+    if (commands) {
+      commands.setChecked('viewport.tool.select', state.mode === 'select');
+      commands.setChecked('viewport.tool.move', state.mode === 'move');
+      commands.setChecked('viewport.tool.rotate', state.mode === 'rotate');
+      commands.setChecked('viewport.tool.scale', state.mode === 'scale');
+      commands.setChecked('viewport.toggle-space', state.transformSpace === 'local');
+      commands.setChecked('viewport.toggle-pivot', state.pivotMode === 'center');
+    }
+  });
 
   shell.root.addEventListener('axisforge:scene-save', () => {
     shell._setStatus('Scene save coming soon', 'warning', 1800);
