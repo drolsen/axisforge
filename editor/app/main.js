@@ -10,6 +10,7 @@ import { Selection } from '../services/selection.js';
 import TransformGizmos from '../components/gizmos.js';
 import { EditorShell, DEFAULT_LAYOUT } from './shell.js';
 import { createViewportOverlay } from '../ui/viewportOverlay.js';
+import CommandPalette from '../ui/palette.js';
 
 function createPanel(title, description) {
   const container = document.createElement('div');
@@ -389,6 +390,14 @@ export function bootstrap() {
   const properties = new Properties(undo, selection);
   const consolePane = new ConsolePane();
   const assetsPane = new AssetsPane(undefined, { floatingUI: false });
+
+  const palette = new CommandPalette({
+    registry: commands,
+    explorer,
+    assets: assetsPane,
+    shell,
+  });
+  shell.setCommandPalette(palette);
 
   const viewportPane = document.createElement('div');
   viewportPane.className = 'viewport-pane';

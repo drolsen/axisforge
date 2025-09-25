@@ -66,6 +66,8 @@ export default class AssetsPane {
     this.searchQuery = '';
     this.hasDOM = typeof document !== 'undefined';
     this._dragDisposers = new Map();
+    this._filtersElement = null;
+    this._searchInput = null;
 
     if (this.hasDOM) {
       this.element = this._createRoot();
@@ -206,20 +208,18 @@ export default class AssetsPane {
       const button = document.createElement('button');
       button.type = 'button';
       button.textContent = entry.label;
+      button.dataset.filter = entry.id;
       if (entry.id === this.filter) {
         button.classList.add('is-active');
       }
       button.addEventListener('click', () => {
-        this.filter = entry.id;
-        for (const child of filters.children) {
-          child.classList.toggle('is-active', child === button);
-        }
-        this._applyFilters();
+        this.setFilter(entry.id);
       });
       filters.appendChild(button);
     }
     left.appendChild(filters);
     left.appendChild(fileInput);
+    this._filtersElement = filters;
 
     const right = document.createElement('div');
     right.className = 'assets-pane__toolbar-right';
@@ -253,18 +253,16 @@ export default class AssetsPane {
     searchInput.type = 'search';
     searchInput.placeholder = 'Search assets…';
     searchInput.addEventListener('input', () => {
-      this.searchQuery = searchInput.value.trim().toLowerCase();
-      this._applyFilters();
+      this.setSearch(searchInput.value);
     });
     searchInput.addEventListener('keydown', event => {
       if (event.key === 'Escape' && searchInput.value) {
-        searchInput.value = '';
-        this.searchQuery = '';
-        this._applyFilters();
+        this.setSearch('');
         event.stopPropagation();
       }
     });
     searchWrap.appendChild(searchInput);
+    this._searchInput = searchInput;
 
     right.append(viewToggle, searchWrap);
     toolbar.append(left, right);
@@ -300,6 +298,40 @@ export default class AssetsPane {
     updateViewButtons();
 
     return root;
+  }
+
+  setFilter(nextFilter = 'all') {
+    const targetFilter = FILTERS.some(entry => entry.id === nextFilter) ? nextFilter : 'all';
+    if (this.filter === targetFilter) {
+      this._applyFilters();
+      return;
+    }
+    this.filter = targetFilter;
+    if (this._filtersElement) {
+      for (const child of this._filtersElement.children) {
+        child.classList.toggle('is-active', child.dataset.filter === targetFilter);
+      }
+    }
+    this._applyFilters();
+  }
+
+  setSearch(value = '') {
+    const normalized = (value ?? '').toString();
+    const lower = normalized.trim().toLowerCase();
+    if (this.searchQuery === lower) {
+      if (normalized !== this._searchInput?.value) {
+        if (this._searchInput) {
+          this._searchInput.value = normalized;
+        }
+      }
+      this._applyFilters();
+      return;
+    }
+    this.searchQuery = lower;
+    if (this._searchInput && this._searchInput.value !== normalized) {
+      this._searchInput.value = normalized;
+    }
+    this._applyFilters();
   }
 
   _applyFilters() {
@@ -440,6 +472,48 @@ export default class AssetsPane {
         console.error('[Assets] Failed to activate model', err);
       });
     }
+  }
+
+  focusAsset(assetOrGuid, { openContextMenu = false } = {}) {
+    const asset = typeof assetOrGuid === 'string'
+      ? this.assets.find(entry => entry?.guid === assetOrGuid) ?? null
+      : assetOrGuid || null;
+    if (!asset) {
+      return false;
+    }
+    if (!matchFilter(asset, this.filter)) {
+      this.setFilter('all');
+    } else {
+      this._applyFilters();
+    }
+    if (this.searchQuery) {
+      this.setSearch('');
+    }
+    if (this.hasDOM) {
+      this._selectAsset(asset, true);
+      if (openContextMenu) {
+        window.requestAnimationFrame(() => {
+          const card = this.itemsHost?.querySelector?.(`.asset-card[data-guid="${asset.guid}"]`);
+          if (!card) return;
+          const rect = card.getBoundingClientRect();
+          const position = {
+            x: rect.left + rect.width / 2,
+            y: rect.top + rect.height / 2,
+          };
+          const items = this._buildContextMenu(asset);
+          if (items?.length) {
+            showContextMenu(position, items);
+          }
+        });
+      }
+    } else {
+      this.selection = asset;
+    }
+    return true;
+  }
+
+  getAssetEntries() {
+    return Array.isArray(this.assets) ? [...this.assets] : [];
   }
 
   _buildContextMenu(asset) {

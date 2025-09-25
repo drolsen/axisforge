@@ -45,6 +45,7 @@ export class EditorShell {
     this.settingsActive = false;
     this.toolMode = 'select';
     this.gridSnap = { enabled: false, size: 1, unit: 'm' };
+    this.palette = null;
 
     this.root = document.createElement('div');
     this.root.className = 'editor-shell';
@@ -109,6 +110,10 @@ export class EditorShell {
     this.dock.registerPane(pane);
   }
 
+  setCommandPalette(palette) {
+    this.palette = palette || null;
+  }
+
   initializeLayout(layout = DEFAULT_LAYOUT) {
     this.dock.initialize(layout ?? DEFAULT_LAYOUT);
     this._updateLayoutInfo();
@@ -139,6 +144,20 @@ export class EditorShell {
 
   _registerShellCommands() {
     if (!this.commands) return;
+
+    this.commands.registerCommand({
+      id: 'view.commandPalette',
+      title: 'Command Palette…',
+      menu: 'view',
+      order: 5,
+      shortcut: ['Mod+K'],
+      allowInInputs: true,
+      run: () => {
+        if (this.palette?.open) {
+          this.palette.open();
+        }
+      },
+    });
 
     // File menu
     this.commands.registerCommand({
