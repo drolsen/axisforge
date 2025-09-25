@@ -4,6 +4,8 @@ import { startPlay, stopPlay } from '../services/playmode.js';
 import { CommandRegistry } from '../ui/commands.js';
 import { Menubar } from '../ui/menubar.js';
 import { HotkeyManager } from '../ui/hotkeys.js';
+import StatusBar from '../ui/statusbar.js';
+import { showToast } from '../ui/toast.js';
 
 const THEME_STORAGE_KEY = 'axisforge.theme';
 
@@ -74,14 +76,17 @@ function findStackForPane(node, paneId) {
 }
 
 export class EditorShell {
-  constructor({ mount = document.body } = {}) {
+  constructor({ mount = document.body, selection = null, undo = null } = {}) {
     this.mount = mount;
+    this.selection = selection;
+    this.undo = undo;
     this.theme = this._loadTheme();
     this.playing = false;
     this._pendingPlay = false;
     this._pendingStop = false;
     this.settingsActive = false;
-    this.statusTimer = null;
+    this.toolMode = 'select';
+    this.gridSnap = { enabled: false, size: 1, unit: 'm' };
 
     this.root = document.createElement('div');
     this.root.className = 'editor-shell';
@@ -94,9 +99,11 @@ export class EditorShell {
     this.toolbar = this._createToolbar();
     this.dockContainer = document.createElement('div');
     this.dockContainer.className = 'dock-area';
-    this.statusbar = this._createStatusbar();
+    this.statusbar = new StatusBar({ selection: this.selection, undo: this.undo });
+    this.setToolMode(this.toolMode);
+    this.setGridSnapState(this.gridSnap);
 
-    this.root.append(this.menubar.element, this.toolbar, this.dockContainer, this.statusbar);
+    this.root.append(this.menubar.element, this.toolbar, this.dockContainer, this.statusbar.element);
     this.mount.appendChild(this.root);
 
     this.dock = new DockArea(this.dockContainer, { storageKey: LAYOUT_STORAGE_KEY });
@@ -440,6 +447,26 @@ export class EditorShell {
     return section;
   }
 
+  setToolMode(mode) {
+    if (!mode) return;
+    this.toolMode = mode;
+    this.statusbar?.setToolMode(mode);
+  }
+
+  setGridSnapState(options = {}) {
+    if (!options || typeof options !== 'object') {
+      this.statusbar?.setGridSnap(this.gridSnap);
+      return;
+    }
+    const next = {
+      enabled: options.enabled ?? this.gridSnap.enabled,
+      size: typeof options.size === 'number' ? options.size : this.gridSnap.size,
+      unit: options.unit || this.gridSnap.unit,
+    };
+    this.gridSnap = next;
+    this.statusbar?.setGridSnap(next);
+  }
+
   _createToolbarButton({ label, icon, variant, onClick, disabled = false }) {
     const button = document.createElement('button');
     button.type = 'button';
@@ -462,47 +489,6 @@ export class EditorShell {
     }
     button.disabled = disabled;
     return button;
-  }
-
-  _createStatusbar() {
-    const bar = document.createElement('footer');
-    bar.className = 'statusbar';
-
-    const left = document.createElement('div');
-    left.className = 'statusbar__section';
-    const right = document.createElement('div');
-    right.className = 'statusbar__section';
-
-    this.statusItem = document.createElement('span');
-    this.statusItem.className = 'statusbar__item';
-    const statusLabel = document.createElement('strong');
-    statusLabel.textContent = 'Status';
-    this.statusValue = document.createElement('span');
-    this.statusValue.textContent = 'Ready';
-    this.statusItem.append(statusLabel, this.statusValue);
-
-    const hint = document.createElement('span');
-    hint.className = 'statusbar__item hint';
-    hint.textContent = 'F6 toggles theme';
-
-    this.themeItem = document.createElement('span');
-    this.themeItem.className = 'statusbar__item';
-    const themeLabel = document.createElement('strong');
-    themeLabel.textContent = 'Theme';
-    this.themeValue = document.createElement('span');
-    this.themeItem.append(themeLabel, this.themeValue);
-
-    this.layoutItem = document.createElement('span');
-    this.layoutItem.className = 'statusbar__item';
-    const layoutLabel = document.createElement('strong');
-    layoutLabel.textContent = 'Layout';
-    this.layoutValue = document.createElement('span');
-    this.layoutItem.append(layoutLabel, this.layoutValue);
-
-    left.append(this.statusItem, hint);
-    right.append(this.themeItem, this.layoutItem);
-    bar.append(left, right);
-    return bar;
   }
 
   _dispatchAction(eventName, statusMessage) {
@@ -606,34 +592,27 @@ export class EditorShell {
   }
 
   _updateThemeIndicator() {
-    if (this.themeValue) {
-      this.themeValue.textContent = this.theme === 'light' ? 'Light' : 'Dark';
-    }
+    this.statusbar?.setTheme?.(this.theme);
   }
 
   _updateLayoutInfo() {
-    if (!this.layoutValue) return;
+    if (!this.dock) return;
     const count = countPanes(this.dock.layout);
-    this.layoutValue.textContent = `${count} pane${count === 1 ? '' : 's'}`;
+    const summary = `${count} pane${count === 1 ? '' : 's'}`;
+    this.statusbar?.setLayoutSummary?.(summary);
   }
 
   _setStatus(message, tone = 'normal', duration = 0) {
-    if (!this.statusItem || !this.statusValue) return;
-    if (this.statusTimer) {
-      clearTimeout(this.statusTimer);
-      this.statusTimer = null;
+    if (!message) return;
+    if (message === 'Ready' && tone === 'normal') {
+      return;
     }
-    this.statusValue.textContent = message;
-    if (tone && tone !== 'normal') {
-      this.statusItem.dataset.tone = tone;
-    } else {
-      delete this.statusItem.dataset.tone;
-    }
-    if (duration > 0) {
-      this.statusTimer = window.setTimeout(() => {
-        this.statusTimer = null;
-        this._setStatus('Ready');
-      }, duration);
-    }
+    const typeMap = {
+      positive: 'success',
+      warning: 'warn',
+      error: 'error',
+    };
+    const toastType = typeMap[tone] ?? 'info';
+    showToast(message, toastType, duration);
   }
 }

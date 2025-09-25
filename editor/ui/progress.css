@@ -1,0 +1,102 @@
+.progress-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 12, 18, 0.35);
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-fast);
+  z-index: 1900;
+}
+
+.progress-overlay.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.progress-overlay__panel {
+  min-width: 280px;
+  max-width: 420px;
+  padding: 1.25rem 1.5rem;
+  border-radius: 0.75rem;
+  background: rgba(16, 20, 28, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--shadow-2);
+  color: var(--text);
+}
+
+.progress-overlay__title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.progress-overlay__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.progress-overlay__item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.9rem;
+}
+
+.progress-overlay__item-title {
+  font-weight: 600;
+}
+
+.progress-overlay__item-percent {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+.progress-overlay__bar {
+  margin-top: 0.4rem;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.progress-overlay__bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent), rgba(91, 139, 255, 0.2));
+  border-radius: inherit;
+  transition: width 160ms ease;
+}
+
+.progress-overlay__bar-fill.is-indeterminate {
+  position: relative;
+  width: 100%;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.15), rgba(91, 139, 255, 0.6));
+  transform: translateX(-60%);
+  animation: progress-indeterminate 1.6s ease-in-out infinite;
+}
+
+@keyframes progress-indeterminate {
+  0% {
+    transform: translateX(-60%);
+  }
+  50% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(60%);
+  }
+}
+
+@media (max-width: 640px) {
+  .progress-overlay__panel {
+    width: calc(100% - 2.5rem);
+  }
+}

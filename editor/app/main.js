@@ -162,10 +162,8 @@ function createAssetsPanel(assetsPane, shell) {
     try {
       await assetsPane.importGLTF(input);
       await loadAssets();
-      shell._setStatus('glTF imported', 'positive', 2000);
     } catch (err) {
       console.error('[Assets] Import failed', err);
-      shell._setStatus('Import failed', 'error', 4000);
     }
   };
 
@@ -182,10 +180,9 @@ function createAssetsPanel(assetsPane, shell) {
 }
 
 export function bootstrap() {
-  const shell = new EditorShell();
-
   const undo = new UndoService();
   const selection = new Selection();
+  const shell = new EditorShell({ selection, undo });
 
   const { commands } = shell;
   if (commands) {
@@ -260,10 +257,15 @@ export function bootstrap() {
       commands.setEnabled('edit.redo', undo.canRedo?.() ?? false);
     };
 
+    const updateDirtyFlag = () => {
+      shell.statusbar?.setProjectDirty?.(undo.undoStack?.length > 0);
+    };
+
     const originalExecute = undo.execute.bind(undo);
     undo.execute = (...args) => {
       const result = originalExecute(...args);
       refreshUndoCommands();
+      updateDirtyFlag();
       return result;
     };
 
@@ -271,6 +273,7 @@ export function bootstrap() {
     undo.undo = (...args) => {
       const result = originalUndo(...args);
       refreshUndoCommands();
+      updateDirtyFlag();
       return result;
     };
 
@@ -278,10 +281,12 @@ export function bootstrap() {
     undo.redo = (...args) => {
       const result = originalRedo(...args);
       refreshUndoCommands();
+      updateDirtyFlag();
       return result;
     };
 
     refreshUndoCommands();
+    updateDirtyFlag();
   }
 
   const explorer = new Explorer(undo, selection);
