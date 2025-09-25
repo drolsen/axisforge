@@ -1,4 +1,5 @@
 import { createEditor } from './propeditors.js';
+import { registerDropTarget } from '../dropdrag.js';
 
 const noop = () => {};
 
@@ -21,6 +22,7 @@ export default class PropertyGrid {
     this._messageElement = document.createElement('div');
     this._messageElement.className = 'property-grid__empty';
     this._activeEditors = [];
+    this._dropTargets = [];
 
     if (parent) {
       parent.appendChild(this.element);
@@ -43,6 +45,7 @@ export default class PropertyGrid {
 
   dispose() {
     this._disposeEditors();
+    this._disposeDropTargets();
     this.element.textContent = '';
   }
 
@@ -57,8 +60,20 @@ export default class PropertyGrid {
     this._activeEditors = [];
   }
 
+  _disposeDropTargets() {
+    for (const dispose of this._dropTargets) {
+      try {
+        dispose?.();
+      } catch (err) {
+        console.warn('PropertyGrid drop target dispose failed', err);
+      }
+    }
+    this._dropTargets = [];
+  }
+
   _render() {
     this._disposeEditors();
+    this._disposeDropTargets();
     this.element.textContent = '';
     const visibleSections = this._sections
       .map(section => ({ ...section, rows: section.rows.filter(row => row && row.visible !== false) }))
@@ -152,6 +167,22 @@ export default class PropertyGrid {
         editor.setMixed(row.mixed);
       }
       this._activeEditors.push(editor);
+    }
+
+    if (row.dropTarget) {
+      const target = row.dropTarget.element instanceof Element ? row.dropTarget.element : valueEl;
+      const disposeDrop = registerDropTarget(target, {
+        types: row.dropTarget.types,
+        effect: row.dropTarget.effect,
+        onDrop: (payload, event) => {
+          if (typeof row.dropTarget.onDrop === 'function') {
+            row.dropTarget.onDrop(payload, row, event);
+          }
+        },
+        onEnter: row.dropTarget.onEnter,
+        onLeave: row.dropTarget.onLeave,
+      });
+      this._dropTargets.push(disposeDrop);
     }
 
     if (Array.isArray(row.actions) && row.actions.length) {

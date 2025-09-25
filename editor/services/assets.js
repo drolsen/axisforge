@@ -135,6 +135,7 @@ function cloneAsset(asset) {
   return {
     ...asset,
     source: asset.source ? { ...asset.source } : undefined,
+    metadata: asset.metadata ? { ...asset.metadata } : undefined,
   };
 }
 
@@ -200,17 +201,42 @@ export class AssetRegistry {
     const asset = this.assets.find(entry => entry.guid === guid);
     return asset ? cloneAsset(asset) : null;
   }
+
+  async update(guid, updater) {
+    if (!guid) return null;
+    const idx = this.assets.findIndex(entry => entry.guid === guid);
+    if (idx === -1) {
+      return null;
+    }
+    const current = cloneAsset(this.assets[idx]);
+    const next = typeof updater === 'function' ? updater(current) ?? current : { ...current, ...updater };
+    this.assets[idx] = cloneAsset(next);
+    await this.save();
+    return cloneAsset(this.assets[idx]);
+  }
+
+  async remove(guid) {
+    if (!guid) return false;
+    const idx = this.assets.findIndex(entry => entry.guid === guid);
+    if (idx === -1) {
+      return false;
+    }
+    this.assets.splice(idx, 1);
+    await this.save();
+    return true;
+  }
 }
 
 export class AssetService {
   constructor(registry = new AssetRegistry()) {
     this.registry = registry;
     this.ready = this.registry.load();
+    this._listeners = new Map();
   }
 
   async import(file) {
     await this.ready;
-    const { name, payload, source } = await normalizeFileInput(file);
+    const { name, payload, source, size } = await normalizeFileInput(file);
     const ext = extension(name).toLowerCase();
     const folder = typeForExt(ext);
     const logicalPath = joinPosix(folder, name);
@@ -223,7 +249,13 @@ export class AssetService {
     if (source) {
       asset.source = source;
     }
+    if (Number.isFinite(size)) {
+      asset.size = size;
+    } else if (payload) {
+      asset.size = payload.length;
+    }
     await this.registry.add(asset);
+    this._emit('change', { type: 'added', asset: cloneAsset(asset) });
     return asset;
   }
 
@@ -248,6 +280,125 @@ export class AssetService {
     await this.ready;
     return this.registry.getByGuid(guid);
   }
+
+  async rename(guid, name) {
+    await this.ready;
+    if (!guid || !name) return null;
+    const trimmed = String(name).trim();
+    if (!trimmed) return null;
+    const updated = await this.registry.update(guid, asset => {
+      if (!asset) return asset;
+      asset.name = trimmed;
+      const ext = extension(trimmed);
+      const folder = asset.type || typeForExt(ext);
+      const logicalName = joinPosix(folder, trimmed);
+      asset.logicalPath = logicalName;
+      return asset;
+    });
+    if (updated) {
+      this._emit('change', { type: 'renamed', asset: updated });
+    }
+    return updated;
+  }
+
+  async remove(guid) {
+    await this.ready;
+    const asset = await this.get(guid);
+    if (!asset) return false;
+    const removed = await this.registry.remove(guid);
+    if (removed) {
+      this._emit('change', { type: 'removed', asset });
+    }
+    return removed;
+  }
+
+  async duplicate(guid, { name: overrideName } = {}) {
+    await this.ready;
+    const original = await this.get(guid);
+    if (!original) return null;
+    const ext = extension(original.name || original.logicalPath || '');
+    const baseName = overrideName
+      ? String(overrideName)
+      : (original.name || original.logicalPath || 'asset').replace(new RegExp(`${ext}$`, 'i'), '').trim();
+    const copyName = `${baseName || 'Asset'} Copy${ext}`;
+    const folder = original.type || typeForExt(ext);
+    const logicalPath = joinPosix(folder, copyName);
+    const newGuid = await guidFromPath(logicalPath);
+    const duplicate = {
+      ...cloneAsset(original),
+      guid: newGuid,
+      name: copyName,
+      logicalPath,
+    };
+    await this.registry.add(duplicate);
+    this._emit('change', { type: 'added', asset: duplicate });
+    return duplicate;
+  }
+
+  async reimport(guid, file) {
+    await this.ready;
+    const existing = await this.get(guid);
+    if (!existing) {
+      throw new Error(`Asset ${guid} does not exist`);
+    }
+    const input = file ?? existing.source?.value ?? null;
+    if (!input) {
+      throw new Error('No source provided for reimport');
+    }
+    const { name, payload, source, size } = await normalizeFileInput(input);
+    const next = await this.registry.update(guid, asset => {
+      if (!asset) return asset;
+      const target = { ...asset };
+      target.name = name || asset.name;
+      if (payload) {
+        target.data = bytesToBase64(payload);
+      }
+      if (source) {
+        target.source = source;
+      }
+      if (Number.isFinite(size)) {
+        target.size = size;
+      } else if (payload) {
+        target.size = payload.length;
+      }
+      return target;
+    });
+    if (next) {
+      this._emit('change', { type: 'reimported', asset: next });
+    }
+    return next;
+  }
+
+  on(event, handler) {
+    if (!event || typeof handler !== 'function') return () => {};
+    if (!this._listeners.has(event)) {
+      this._listeners.set(event, new Set());
+    }
+    const set = this._listeners.get(event);
+    set.add(handler);
+    return () => this.off(event, handler);
+  }
+
+  off(event, handler) {
+    const set = this._listeners.get(event);
+    if (!set) return;
+    set.delete(handler);
+    if (!set.size) {
+      this._listeners.delete(event);
+    }
+  }
+
+  _emit(event, payload) {
+    const set = this._listeners.get(event);
+    if (!set) return;
+    for (const handler of Array.from(set)) {
+      try {
+        handler(payload);
+      } catch (err) {
+        console.warn('[Assets] Listener failed', err);
+      }
+    }
+  }
 }
 
 async function normalizeFileInput(file) {
@@ -260,29 +411,31 @@ async function normalizeFileInput(file) {
       name: basename(file),
       payload: null,
       source: { kind: 'path', value: file },
+      size: null,
     };
   }
 
   if (typeof File !== 'undefined' && file instanceof File) {
     const buffer = await file.arrayBuffer();
-    return { name: file.name, payload: new Uint8Array(buffer) };
+    return { name: file.name, payload: new Uint8Array(buffer), size: file.size ?? buffer.byteLength };
   }
 
   if (typeof file.arrayBuffer === 'function') {
     const buffer = await file.arrayBuffer();
-    return { name: file.name || basename(file.path) || 'asset', payload: new Uint8Array(buffer) };
+    const size = file.size ?? buffer.byteLength;
+    return { name: file.name || basename(file.path) || 'asset', payload: new Uint8Array(buffer), size };
   }
 
   if (file.buffer) {
     const payload = toUint8Array(file.buffer);
     const name = file.name || basename(file.path) || 'asset';
-    return { name, payload };
+    return { name, payload, size: payload.byteLength };
   }
 
   if (file.base64) {
     const decoded = decodeBase64ToBytes(file.base64);
     const name = file.name || basename(file.path) || 'asset';
-    return { name, payload: decoded };
+    return { name, payload: decoded, size: decoded.byteLength };
   }
 
   throw new Error('Unsupported file input');

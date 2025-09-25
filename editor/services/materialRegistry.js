@@ -92,6 +92,7 @@ class EditorMaterialRegistry {
     this._textureRefs = new Map();
     this._assetRefs = new Map();
     this._samplers = new Map();
+    this._guidIndex = new Map();
   }
 
   _getTextureStore(materialId) {
@@ -125,9 +126,22 @@ class EditorMaterialRegistry {
   _rememberAssignment(materialId, slotKey, assetInfo = null) {
     const store = this._getAssetStore(materialId);
     if (assetInfo) {
-      store.set(slotKey, { ...assetInfo });
+      const entry = { ...assetInfo };
+      store.set(slotKey, entry);
+      if (entry.guid) {
+        if (!this._guidIndex.has(entry.guid)) {
+          this._guidIndex.set(entry.guid, new Set());
+        }
+        this._guidIndex.get(entry.guid).add(`${materialId}:${slotKey}`);
+      }
     } else {
       store.delete(slotKey);
+      for (const [guid, refs] of this._guidIndex.entries()) {
+        refs.delete(`${materialId}:${slotKey}`);
+        if (!refs.size) {
+          this._guidIndex.delete(guid);
+        }
+      }
     }
   }
 
@@ -323,6 +337,41 @@ class EditorMaterialRegistry {
       [slot.paramTexture]: null,
       [slot.paramSampler]: null,
     });
+  }
+
+  async refreshAssignmentsForAsset(asset, resolver = null) {
+    const guid = asset?.guid;
+    if (!guid) {
+      return;
+    }
+    const references = this._guidIndex.get(guid);
+    if (!references || !references.size) {
+      return;
+    }
+    let assetData = asset;
+    if (!assetData?.data && typeof resolver === 'function') {
+      try {
+        assetData = await resolver(guid);
+      } catch (err) {
+        console.warn('[Materials] Failed to resolve asset for refresh', err);
+        return;
+      }
+    }
+    if (!assetData) {
+      return;
+    }
+    for (const ref of Array.from(references)) {
+      const [materialIdStr, slotKey] = ref.split(':');
+      const materialId = Number(materialIdStr);
+      if (!Number.isFinite(materialId) || !slotKey) {
+        continue;
+      }
+      try {
+        await this.assignTextureFromAsset(materialId, slotKey, assetData);
+      } catch (err) {
+        console.warn('[Materials] Failed to refresh texture assignment', { materialId, slotKey }, err);
+      }
+    }
   }
 
   setBaseColor(materialId, color) {
