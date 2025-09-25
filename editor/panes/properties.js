@@ -66,6 +66,7 @@ export default class Properties {
     this.boundInstances = [];
     this.boundConnections = [];
     this.current = null;
+    this._listeners = new Set();
 
     this.selectionConnection = this.selection.Changed.Connect(sel => {
       this._bindInstances(sel);
@@ -77,10 +78,28 @@ export default class Properties {
   dispose() {
     if (this.selectionConnection) this.selectionConnection.Disconnect();
     this._disconnectBound();
+    this._listeners.clear();
   }
 
   getCurrent() {
     return this.current;
+  }
+
+  onChange(listener) {
+    if (typeof listener !== 'function') {
+      return () => {};
+    }
+    this._listeners.add(listener);
+    if (this.current) {
+      try {
+        listener(this.current);
+      } catch (err) {
+        console.error('[Properties] onChange listener error', err);
+      }
+    }
+    return () => {
+      this._listeners.delete(listener);
+    };
   }
 
   editNumber(inst, prop, value) {
@@ -118,12 +137,14 @@ export default class Properties {
     this._disconnectBound();
     this.boundInstances = [...instances];
     this.current = this._buildState();
+    this._emitChange();
 
     for (const inst of this.boundInstances) {
       this.boundConnections.push(
         inst.Changed.Connect(prop => {
           if (prop === 'Name' || VECTOR_PROPS.includes(prop)) {
             this.current = this._buildState();
+            this._emitChange();
           }
         }),
       );
@@ -145,5 +166,15 @@ export default class Properties {
       Rotation: buildVectorField(instances, 'Rotation'),
       Scale: buildVectorField(instances, 'Scale'),
     };
+  }
+
+  _emitChange() {
+    for (const listener of this._listeners) {
+      try {
+        listener(this.current);
+      } catch (err) {
+        console.error('[Properties] onChange listener error', err);
+      }
+    }
   }
 }

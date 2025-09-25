@@ -5,10 +5,13 @@ import { tryGetDevice } from '../../engine/render/gpu/device.js';
 
 // Basic Asset Manager pane providing import and listing features.
 export default class AssetsPane {
-  constructor(service = new AssetService()) {
+  constructor(service = new AssetService(), options = {}) {
     this.service = service;
     this.workspace = getWorkspace();
-    this._setupUI();
+    const { floatingUI = true } = options ?? {};
+    if (floatingUI) {
+      this._setupUI();
+    }
   }
 
   // Import an array of File objects or paths.
