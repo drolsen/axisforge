@@ -81,7 +81,6 @@ fn vs(input : VertexInput) -> VertexOutput {
   return output;
 }
 
-@fragment
 fn fresnelSchlick(cosTheta : f32, F0 : vec3<f32>) -> vec3<f32> {
   let ct = clamp(cosTheta, 0.0, 1.0);
   return F0 + (vec3<f32>(1.0) - F0) * pow(1.0 - ct, 5.0);

@@ -40,17 +40,29 @@ export class StandardPBRMaterial {
   }
 
   update(params = {}) {
+    if (Object.prototype.hasOwnProperty.call(params, 'baseColorFactor')) {
+      this.color = toVec4Color(params.baseColorFactor);
+    }
     if (Object.prototype.hasOwnProperty.call(params, 'color')) {
       this.color = toVec4Color(params.color);
     }
-    if (Object.prototype.hasOwnProperty.call(params, 'roughness') && typeof params.roughness === 'number') {
+    if (Object.prototype.hasOwnProperty.call(params, 'roughnessFactor') && typeof params.roughnessFactor === 'number') {
+      this.roughness = params.roughnessFactor;
+    } else if (Object.prototype.hasOwnProperty.call(params, 'roughness') && typeof params.roughness === 'number') {
       this.roughness = params.roughness;
     }
-    if (Object.prototype.hasOwnProperty.call(params, 'metalness') && typeof params.metalness === 'number') {
+    if (Object.prototype.hasOwnProperty.call(params, 'metallicFactor') && typeof params.metallicFactor === 'number') {
+      this.metalness = params.metallicFactor;
+    } else if (Object.prototype.hasOwnProperty.call(params, 'metalness') && typeof params.metalness === 'number') {
       this.metalness = params.metalness;
     }
     if (Object.prototype.hasOwnProperty.call(params, 'emissive')) {
       const arr = Array.from(params.emissive ?? DEFAULT_EMISSIVE);
+      while (arr.length < 3) arr.push(0);
+      this.emissive = new Float32Array([...arr.slice(0, 3), 0]);
+    }
+    if (Object.prototype.hasOwnProperty.call(params, 'emissiveFactor')) {
+      const arr = Array.from(params.emissiveFactor ?? DEFAULT_EMISSIVE);
       while (arr.length < 3) arr.push(0);
       this.emissive = new Float32Array([...arr.slice(0, 3), 0]);
     }
@@ -61,8 +73,14 @@ export class StandardPBRMaterial {
     if (Object.prototype.hasOwnProperty.call(params, 'albedoTexture')) {
       this.maps.albedo.texture = params.albedoTexture;
     }
+    if (Object.prototype.hasOwnProperty.call(params, 'baseColorTexture')) {
+      this.maps.albedo.texture = params.baseColorTexture;
+    }
     if (Object.prototype.hasOwnProperty.call(params, 'albedoSampler')) {
       this.maps.albedo.sampler = params.albedoSampler;
+    }
+    if (Object.prototype.hasOwnProperty.call(params, 'baseColorSampler')) {
+      this.maps.albedo.sampler = params.baseColorSampler;
     }
     if (Object.prototype.hasOwnProperty.call(params, 'metallicRoughnessTexture')) {
       this.maps.metallicRoughness.texture = params.metallicRoughnessTexture;
