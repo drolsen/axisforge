@@ -90,4 +90,28 @@ export default class UndoService {
       },
     };
   }
+
+  removeAttribute(inst, attr) {
+    const hadValue = inst.Attributes.has(attr);
+    const oldValue = inst.GetAttribute(attr);
+    return {
+      undo() {
+        if (hadValue) {
+          inst.SetAttribute(attr, oldValue);
+        } else if (inst.Attributes.has(attr)) {
+          inst.Attributes.delete(attr);
+          if (inst?.Changed?.Fire) inst.Changed.Fire(attr);
+        } else if (inst?.Changed?.Fire) {
+          inst.Changed.Fire(attr);
+        }
+      },
+      redo() {
+        if (inst.Attributes.delete(attr) && inst?.Changed?.Fire) {
+          inst.Changed.Fire(attr);
+        } else if (inst?.Changed?.Fire) {
+          inst.Changed.Fire(attr);
+        }
+      },
+    };
+  }
 }

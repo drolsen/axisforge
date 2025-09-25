@@ -47,10 +47,10 @@ class TransformNode extends Instance {
     this._position = cloneVector3({});
     this._scale = cloneScale({ x: 1, y: 1, z: 1 });
     this._rotationQuat = quaternionFromEuler();
-
     super.setProperty('Position', cloneVector3(this._position));
     super.setProperty('Scale', cloneVector3(this._scale));
     super.setProperty('Rotation', cloneVector3(quaternionToEuler(this._rotationQuat)));
+    super.setProperty('Visible', true);
 
     this._localMatrix = mat4Identity();
     this._worldMatrix = mat4Identity();
@@ -64,6 +64,15 @@ class TransformNode extends Instance {
   }
 
   setProperty(name, value) {
+    if (name === 'Visible') {
+      const next = value === undefined ? true : Boolean(value);
+      if (this.Visible === next) {
+        return;
+      }
+      super.setProperty(name, next);
+      return;
+    }
+
     if (name === 'Position') {
       this._position = cloneVector3(value);
       super.setProperty(name, cloneVector3(this._position));
@@ -156,7 +165,7 @@ class TransformNode extends Instance {
   }
 
   isRenderable() {
-    return this.Parent !== null;
+    return this.Parent !== null && this.Visible !== false;
   }
 }
 
@@ -176,6 +185,15 @@ class MeshInstance extends TransformNode {
 
     this.setMesh(mesh, materials);
     drawList.register(this);
+  }
+
+  setProperty(name, value) {
+    if (name === 'Visible') {
+      super.setProperty(name, value);
+      drawList.markDirty();
+      return;
+    }
+    super.setProperty(name, value);
   }
 
   setMesh(mesh, materials = null) {
