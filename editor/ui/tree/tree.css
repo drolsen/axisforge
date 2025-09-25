@@ -1,0 +1,203 @@
+.virtual-tree {
+  --tree-row-height: 24px;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background: var(--panel);
+  border-radius: 0.45rem;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.45);
+}
+
+.virtual-tree.is-dragging {
+  cursor: grabbing;
+}
+
+.virtual-tree__content {
+  position: relative;
+  min-height: 100%;
+}
+
+.virtual-tree__row {
+  position: absolute;
+  inset: 0 0 auto 0;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding-right: 1rem;
+  font-size: 0.85rem;
+  line-height: 1;
+  color: rgba(244, 246, 251, 0.88);
+  cursor: default;
+  user-select: none;
+  white-space: nowrap;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.virtual-tree__row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.virtual-tree__row.is-selected {
+  background: rgba(91, 139, 255, 0.18);
+  color: #f5f7ff;
+}
+
+.virtual-tree__row.is-selected:hover {
+  background: rgba(91, 139, 255, 0.24);
+}
+
+.virtual-tree__row.is-focused:not(.is-selected) {
+  background: rgba(91, 139, 255, 0.1);
+}
+
+.virtual-tree__row.has-match:not(.is-selected) .virtual-tree__label {
+  color: #f7f9ff;
+}
+
+.virtual-tree__toggle {
+  flex: 0 0 auto;
+  width: 1.1rem;
+  height: 1.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 0.25rem;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.virtual-tree__toggle:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.virtual-tree__toggle::before {
+  content: '\25B8';
+  font-size: 0.85rem;
+  transform: translateX(1px);
+}
+
+.virtual-tree__toggle.is-expanded::before {
+  content: '\25BE';
+  transform: translateY(-1px);
+}
+
+.virtual-tree__icon {
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 1rem;
+  opacity: 0.85;
+  color: currentColor;
+}
+
+.virtual-tree__label {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.virtual-tree__highlight {
+  background: rgba(91, 139, 255, 0.28);
+  color: inherit;
+  padding: 0 0.1rem;
+  border-radius: 0.2rem;
+}
+
+.virtual-tree__rename {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  background: rgba(9, 12, 20, 0.9);
+  border: 1px solid rgba(91, 139, 255, 0.55);
+  border-radius: 0.3rem;
+  padding: 0.25rem 0.35rem;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
+.virtual-tree__drop-indicator {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  margin-top: -1px;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px rgba(12, 18, 32, 0.25);
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Context menu styling */
+.contextmenu {
+  position: fixed;
+  z-index: 10000;
+  min-width: 160px;
+  padding: 0.35rem 0;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(20, 26, 36, 0.98), rgba(12, 16, 24, 0.98));
+  box-shadow: var(--shadow-2);
+  backdrop-filter: blur(12px);
+}
+
+.contextmenu__item {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.contextmenu__item.is-disabled {
+  opacity: 0.45;
+}
+
+.contextmenu__button {
+  width: 100%;
+  border: none;
+  background: none;
+  color: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.contextmenu__button:hover:not(:disabled) {
+  background: rgba(91, 139, 255, 0.22);
+}
+
+.contextmenu__item.is-disabled .contextmenu__button {
+  cursor: default;
+}
+
+.contextmenu__shortcut {
+  opacity: 0.6;
+  font-size: 0.75rem;
+}
+
+.contextmenu__arrow {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-left: 0.5rem;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M9 6l6 6-6 6'/%3E%3C/svg%3E") center / contain no-repeat;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M9 6l6 6-6 6'/%3E%3C/svg%3E") center / contain no-repeat;
+  background: currentColor;
+  opacity: 0.7;
+}
+
+.contextmenu__separator {
+  height: 1px;
+  margin: 0.25rem 0.35rem;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.contextmenu--submenu {
+  position: fixed;
+  margin-left: 0.35rem;
+}

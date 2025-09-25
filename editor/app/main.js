@@ -24,47 +24,9 @@ function createPanel(title, description) {
   return container;
 }
 
-function createExplorerPanel(explorer, selection, shell) {
+function createExplorerPanel(explorer) {
   const container = createPanel('Explorer', 'Manage the scene hierarchy and quick actions.');
-  const actions = document.createElement('div');
-  actions.className = 'panel-actions';
-
-  const addModel = document.createElement('button');
-  addModel.textContent = 'Add Model';
-  addModel.addEventListener('click', () => {
-    explorer.addModel();
-    shell._setStatus('Model added to scene', 'positive', 1600);
-  });
-
-  const deleteSelected = document.createElement('button');
-  deleteSelected.textContent = 'Delete Selected';
-  deleteSelected.addEventListener('click', () => {
-    explorer.deleteSelected();
-    shell._setStatus('Selection cleared', 'warning', 1600);
-  });
-
-  actions.append(addModel, deleteSelected);
-  container.appendChild(actions);
-
-  const selectionInfo = document.createElement('div');
-  selectionInfo.className = 'hint';
-  container.appendChild(selectionInfo);
-
-  const updateSelectionInfo = () => {
-    const count = selection.get().length;
-    deleteSelected.disabled = count === 0;
-    selectionInfo.textContent = count
-      ? `${count} item${count === 1 ? '' : 's'} selected`
-      : 'No selection';
-  };
-  updateSelectionInfo();
-  selection.Changed.Connect(updateSelectionInfo);
-
-  const placeholder = document.createElement('div');
-  placeholder.className = 'panel-empty';
-  placeholder.textContent = 'Scene tree visualization is coming in Card 29.';
-  container.appendChild(placeholder);
-
+  container.appendChild(explorer.getElement());
   return container;
 }
 
@@ -343,7 +305,7 @@ export function bootstrap() {
   const viewportPane = document.createElement('div');
   viewportPane.className = 'viewport-pane';
 
-  const explorerPanel = createExplorerPanel(explorer, selection, shell);
+  const explorerPanel = createExplorerPanel(explorer);
   const propertiesPanel = createPropertiesPanel(properties, selection);
   const consolePanel = createConsolePanel(consolePane);
   const assetsPanel = createAssetsPanel(assetsPane, shell);
