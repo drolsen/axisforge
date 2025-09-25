@@ -2,6 +2,8 @@ import AssetService from '../services/assets.js';
 import importGLTF from '../../engine/asset/gltf/importer.js';
 import { getWorkspace } from '../../engine/scene/workspace.js';
 import { tryGetDevice } from '../../engine/render/gpu/device.js';
+import { showToast } from '../ui/toast.js';
+import { showProgress, hideProgress } from '../ui/progress.js';
 
 // Basic Asset Manager pane providing import and listing features.
 export default class AssetsPane {
@@ -40,10 +42,24 @@ export default class AssetsPane {
     if (!tryGetDevice()) {
       throw new Error('GPU device is not ready. Please wait for WebGPU initialization.');
     }
-    await this.import(url);
-    const result = await importGLTF(url, { name: url.split('/').pop() });
-    console.info('[Assets] Imported glTF', url, result);
-    return result;
+    const name = url.split('/').pop() || 'Asset';
+    const progressId = `gltf:${Date.now()}:${Math.random().toString(36).slice(2, 7)}`;
+    showProgress(progressId, { title: `Importing ${name}`, percent: 0.1 });
+    try {
+      await this.import(url);
+      showProgress(progressId, { title: `Importing ${name}`, percent: 0.45 });
+      const result = await importGLTF(url, { name });
+      showProgress(progressId, { title: `Finalizing ${name}`, percent: 1 });
+      window.setTimeout(() => hideProgress(progressId), 240);
+      showToast(`Imported ${name}`, 'success', 3200);
+      console.info('[Assets] Imported glTF', url, result);
+      return result;
+    } catch (err) {
+      hideProgress(progressId);
+      const detail = err?.message ? `: ${err.message}` : '';
+      showToast(`Failed to import ${name}${detail}`, 'error', 6200);
+      throw err;
+    }
   }
 
   _setupUI() {
