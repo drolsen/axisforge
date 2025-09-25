@@ -1,6 +1,6 @@
 import { initWebGPU } from '../../engine/render/gpu/webgpu.js';
 import { GetService } from '../../engine/core/index.js';
-import { initEditorCamera } from './cameraEditor.js';
+import { initEditorCamera, focusCameraOnBounds } from './cameraEditor.js';
 
 export function initViewport({ mount } = {}) {
   const canvas = document.createElement('canvas');
@@ -13,3 +13,5 @@ export function initViewport({ mount } = {}) {
   initWebGPU(canvas);
   return canvas;
 }
+
+export { focusCameraOnBounds };

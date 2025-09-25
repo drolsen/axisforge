@@ -4,7 +4,7 @@ import UndoService from '../../editor/services/undo.js';
 import { Selection } from '../../editor/services/selection.js';
 import Explorer from '../../editor/panes/explorer.js';
 import Properties from '../../editor/panes/properties.js';
-import TranslationGizmo from '../../editor/components/gizmos.js';
+import TransformGizmos from '../../editor/components/gizmos.js';
 
 function createMeshInstance(name = 'Mesh') {
   const inst = new Instance('MeshPart');
@@ -41,7 +41,8 @@ test('gizmo drag updates position and pushes undo', t => {
   const selection = new Selection();
   const explorer = new Explorer(undo, selection);
   const properties = new Properties(undo, selection);
-  const gizmo = new TranslationGizmo(selection, undo);
+  const gizmo = new TransformGizmos(selection, undo);
+  gizmo.setToolMode('move');
 
   const mesh = createMeshInstance();
   explorer.register(mesh);
@@ -65,6 +66,78 @@ test('gizmo drag updates position and pushes undo', t => {
 
   undo.redo();
   t.is(mesh.Position.x, 3);
+
+  gizmo.dispose();
+});
+
+test('gizmo move snap quantizes translation', t => {
+  const undo = new UndoService();
+  const selection = new Selection();
+  const explorer = new Explorer(undo, selection);
+  const properties = new Properties(undo, selection);
+  const gizmo = new TransformGizmos(selection, undo);
+
+  const mesh = createMeshInstance();
+  explorer.register(mesh);
+  explorer.click(mesh);
+
+  gizmo.setToolMode('move');
+  gizmo.setSnapValue('translate', 0.5);
+
+  gizmo.beginDrag('x');
+  gizmo.drag(0.26);
+  gizmo.endDrag();
+
+  t.is(mesh.Position.x, 0.5);
+  t.is(properties.getCurrent().Position.value.x, 0.5);
+
+  gizmo.dispose();
+});
+
+test('gizmo rotate and snap updates rotation', t => {
+  const undo = new UndoService();
+  const selection = new Selection();
+  const explorer = new Explorer(undo, selection);
+  const properties = new Properties(undo, selection);
+  const gizmo = new TransformGizmos(selection, undo);
+
+  const mesh = createMeshInstance();
+  explorer.register(mesh);
+  explorer.click(mesh);
+
+  gizmo.setToolMode('rotate');
+  gizmo.setSnapValue('rotate', 15);
+
+  gizmo.beginDrag('y');
+  gizmo.drag(13);
+  gizmo.endDrag();
+
+  t.is(mesh.Rotation.y, 15);
+  t.is(properties.getCurrent().Rotation.value.y, 15);
+
+  gizmo.dispose();
+});
+
+test('gizmo scale uniform snap applies evenly', t => {
+  const undo = new UndoService();
+  const selection = new Selection();
+  const explorer = new Explorer(undo, selection);
+  const properties = new Properties(undo, selection);
+  const gizmo = new TransformGizmos(selection, undo);
+
+  const mesh = createMeshInstance();
+  explorer.register(mesh);
+  explorer.click(mesh);
+
+  gizmo.setToolMode('scale');
+  gizmo.setSnapValue('scale', 0.1);
+
+  gizmo.beginDrag('uniform');
+  gizmo.drag(0.23);
+  gizmo.endDrag();
+
+  t.deepEqual(mesh.Scale, { x: 1.2, y: 1.2, z: 1.2 });
+  t.deepEqual(properties.getCurrent().Scale.value, { x: 1.2, y: 1.2, z: 1.2 });
 
   gizmo.dispose();
 });

@@ -14,6 +14,7 @@ import {
 const MIN_DISTANCE = 0.25;
 const MAX_DISTANCE = 500;
 const GRID_FADE_SPEED = 5;
+const DEFAULT_FOCUS_DURATION = 0.35;
 
 const settings = {
   mouseSensitivity: 0.0025,
@@ -40,6 +41,7 @@ let wheelHandler = null;
 let contextHandler = null;
 let activeCameraDisposer = null;
 let updateBound = null;
+let focusAnimation = null;
 
 function lengthVec(a, b) {
   const dx = a[0] - b[0];
@@ -100,6 +102,65 @@ function applyOrbitTransform() {
   ];
   editorCamera.setPosition(newPosition);
   editorCamera.setYawPitch(yaw, pitch);
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function startFocusAnimation(targetPivot, targetDistance, duration = DEFAULT_FOCUS_DURATION) {
+  if (!editorCamera) {
+    return;
+  }
+  const safeDuration = Math.max(0.01, Number.isFinite(duration) ? duration : DEFAULT_FOCUS_DURATION);
+  const pivotTarget = Array.isArray(targetPivot) ? targetPivot : [pivot[0], pivot[1], pivot[2]];
+  const clampedDistance = Math.max(MIN_DISTANCE, Math.min(MAX_DISTANCE, targetDistance));
+
+  if (safeDuration <= 0.015) {
+    setPivot(pivotTarget[0], pivotTarget[1], pivotTarget[2]);
+    distance = clampedDistance;
+    applyOrbitTransform();
+    focusAnimation = null;
+    return;
+  }
+
+  focusAnimation = {
+    elapsed: 0,
+    duration: safeDuration,
+    startPivot: [pivot[0], pivot[1], pivot[2]],
+    endPivot: [pivotTarget[0], pivotTarget[1], pivotTarget[2]],
+    startDistance: distance,
+    endDistance: clampedDistance,
+    startYaw: yaw,
+    endYaw: yaw,
+    startPitch: pitch,
+    endPitch: pitch,
+  };
+}
+
+function updateFocusAnimation(dt) {
+  if (!focusAnimation) {
+    return;
+  }
+  focusAnimation.elapsed += dt;
+  const progress = Math.min(1, focusAnimation.elapsed / focusAnimation.duration);
+  const eased = progress * progress * (3 - 2 * progress);
+  const px = lerp(focusAnimation.startPivot[0], focusAnimation.endPivot[0], eased);
+  const py = lerp(focusAnimation.startPivot[1], focusAnimation.endPivot[1], eased);
+  const pz = lerp(focusAnimation.startPivot[2], focusAnimation.endPivot[2], eased);
+  const dist = lerp(focusAnimation.startDistance, focusAnimation.endDistance, eased);
+  const nextYaw = lerp(focusAnimation.startYaw, focusAnimation.endYaw, eased);
+  const nextPitch = lerp(focusAnimation.startPitch, focusAnimation.endPitch, eased);
+
+  setPivot(px, py, pz);
+  yaw = nextYaw;
+  pitch = nextPitch;
+  distance = dist;
+  applyOrbitTransform();
+
+  if (progress >= 1) {
+    focusAnimation = null;
+  }
 }
 
 function updatePivotFromCamera() {
@@ -228,6 +289,7 @@ function updateGridFade(dt) {
 
 function update(dt) {
   updateGridFade(dt);
+  updateFocusAnimation(dt);
   if (!active || !editorCamera) {
     return;
   }
@@ -452,4 +514,39 @@ export function disposeEditorCamera() {
   editorCamera = null;
   UIS = null;
   canvasRef = null;
+}
+
+export function focusCameraOnBounds(bounds, { duration = DEFAULT_FOCUS_DURATION } = {}) {
+  if (!bounds || !editorCamera) {
+    return;
+  }
+
+  const center = bounds.center ?? { x: 0, y: 0, z: 0 };
+  const size = bounds.size ?? { x: 0, y: 0, z: 0 };
+
+  const cx = typeof center.x === 'number' ? center.x : 0;
+  const cy = typeof center.y === 'number' ? center.y : 0;
+  const cz = typeof center.z === 'number' ? center.z : 0;
+
+  const extentX = Math.max(0.001, typeof size.x === 'number' ? size.x : 0);
+  const extentY = Math.max(0.001, typeof size.y === 'number' ? size.y : 0);
+  const extentZ = Math.max(0.001, typeof size.z === 'number' ? size.z : 0);
+
+  const radius = Math.max(extentX, extentY, extentZ) * 0.5 || 0.5;
+
+  const fov = editorCamera.getFov?.() ?? Math.PI / 3;
+  const aspect = editorCamera.getAspect?.() ?? 1;
+  const halfVertical = Math.max(0.087, fov * 0.5);
+  const halfHorizontal = Math.max(0.087, Math.min(Math.PI * 0.49, Math.atan(Math.tan(halfVertical) * aspect)));
+  const verticalDistance = radius / Math.sin(halfVertical);
+  const horizontalDistance = radius / Math.sin(halfHorizontal);
+  let targetDistance = Math.max(verticalDistance, horizontalDistance);
+
+  if (!Number.isFinite(targetDistance) || targetDistance <= 0) {
+    targetDistance = radius * 3;
+  }
+
+  const paddedDistance = Math.min(MAX_DISTANCE, Math.max(MIN_DISTANCE * 2, targetDistance * 1.15));
+
+  startFocusAnimation([cx, cy, cz], paddedDistance, duration);
 }
