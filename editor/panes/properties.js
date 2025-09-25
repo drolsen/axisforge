@@ -2,6 +2,9 @@ import UndoService from '../services/undo.js';
 import { Selection } from '../services/selection.js';
 import PropertyGrid from '../ui/propgrid/propgrid.js';
 import { isVector3, isColor3, isValidAttribute } from '../../engine/core/types.js';
+import AssetService from '../services/assets.js';
+import MaterialRegistry, { MATERIAL_TEXTURE_SLOTS } from '../services/materialRegistry.js';
+import { showToast } from '../ui/toast.js';
 
 const VECTOR_PROPS = ['Position', 'Rotation', 'Scale'];
 const MIXED_PLACEHOLDER = '—';
@@ -278,6 +281,11 @@ export default class Properties {
     this.current = null;
     this._listeners = new Set();
     this.hasDOM = typeof document !== 'undefined' && typeof document.createElement === 'function';
+    this.assetService = new AssetService();
+    this.materialRegistry = MaterialRegistry;
+    this.materialChangedConnection = this.materialRegistry.MaterialChanged.Connect(({ materialId }) => {
+      this._handleMaterialRegistryUpdate(materialId);
+    });
 
     if (this.hasDOM) {
       this.element = document.createElement('div');
@@ -303,6 +311,10 @@ export default class Properties {
 
   dispose() {
     if (this.selectionConnection) this.selectionConnection.Disconnect();
+    if (this.materialChangedConnection) {
+      this.materialChangedConnection.Disconnect();
+      this.materialChangedConnection = null;
+    }
     this._disconnectBound();
     this._listeners.clear();
     this.grid?.dispose?.();
@@ -599,6 +611,32 @@ export default class Properties {
         mixed: state.Material.mixed,
       });
     }
+    const materialId = state.Material && !state.Material.mixed ? state.Material.value ?? null : null;
+    if (materialId != null) {
+      for (const slot of MATERIAL_TEXTURE_SLOTS) {
+        const assignment = this.materialRegistry.getAssignedAsset(materialId, slot.key);
+        appearanceRows.push({
+          id: `prop-material-${slot.key}`,
+          label: slot.label,
+          type: 'text',
+          readOnly: true,
+          value: assignment?.name || assignment?.logicalPath || 'None',
+          placeholder: assignment ? '' : 'Drop texture…',
+          mixed: false,
+          dropTarget: {
+            types: ['asset/textures'],
+            onDrop: payload => this._handleTextureDrop(materialId, slot.key, payload),
+          },
+          actions: assignment
+            ? [{
+                text: 'Clear',
+                label: 'Remove texture',
+                onClick: () => this._clearTexture(materialId, slot.key),
+              }]
+            : [],
+        });
+      }
+    }
     if (appearanceRows.length) {
       sections.push({ id: 'section-appearance', label: 'Appearance', rows: appearanceRows });
     }
@@ -661,6 +699,59 @@ export default class Properties {
     sections.push({ id: 'section-attributes', label: 'Attributes', rows: attributeRows });
 
     return sections;
+  }
+
+  async _handleTextureDrop(materialId, slotKey, payload) {
+    if (!payload || !payload.guid) {
+      showToast('Drag a texture asset to assign.', 'info', 2000);
+      return;
+    }
+    try {
+      const asset = await this.assetService.get(payload.guid);
+      if (!asset) {
+        showToast('Selected asset is unavailable.', 'error', 2400);
+        return;
+      }
+      await this.materialRegistry.assignTextureFromAsset(materialId, slotKey, asset);
+      this._handleMaterialRegistryUpdate(materialId);
+      const label = asset.name || asset.logicalPath || asset.guid;
+      showToast(`Assigned ${label}`, 'success', 2000);
+    } catch (err) {
+      console.error('[Properties] Failed to assign texture', err);
+      showToast(`Texture assignment failed: ${err.message}`, 'error', 3200);
+    }
+  }
+
+  _clearTexture(materialId, slotKey) {
+    try {
+      this.materialRegistry.clearTexture(materialId, slotKey);
+      this._handleMaterialRegistryUpdate(materialId);
+      showToast('Texture cleared', 'info', 1600);
+    } catch (err) {
+      console.error('[Properties] Failed to clear texture', err);
+      showToast('Unable to clear texture.', 'error', 2400);
+    }
+  }
+
+  _selectionUsesMaterial(materialId) {
+    if (materialId == null) {
+      return false;
+    }
+    for (const inst of this.boundInstances) {
+      if (getPrimaryMaterial(inst) === materialId) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  _handleMaterialRegistryUpdate(materialId) {
+    if (!this._selectionUsesMaterial(materialId)) {
+      return;
+    }
+    this.current = this._buildState();
+    this._updateView();
+    this._emitChange();
   }
 
   _editorTypeForAttribute(type) {
