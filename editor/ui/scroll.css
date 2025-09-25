@@ -1,0 +1,68 @@
+:root {
+  --scrollbar-track: rgba(255, 255, 255, 0.04);
+  --scrollbar-thumb: rgba(110, 146, 255, 0.6);
+  --scrollbar-thumb-hover: rgba(110, 146, 255, 0.85);
+  --scrollbar-thumb-active: rgba(110, 146, 255, 1);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+  scrollbar-gutter: stable both-edges;
+}
+
+@supports (scrollbar-color: auto) {
+  body[data-theme="light"],
+  :root[data-theme="light"] * {
+    scrollbar-color: rgba(39, 84, 255, 0.55) transparent;
+  }
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+  background-color: transparent;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: border-width 150ms ease, background-color 150ms ease;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  border-width: 1px;
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+*::-webkit-scrollbar-thumb:active {
+  border-width: 0;
+  background-color: var(--scrollbar-thumb-active);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+[data-theme="light"] *::-webkit-scrollbar-track {
+  background: rgba(10, 18, 40, 0.08);
+}
+
+[data-theme="light"] *::-webkit-scrollbar-thumb {
+  background-color: rgba(39, 84, 255, 0.55);
+}
+
+[data-theme="light"] *::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(39, 84, 255, 0.75);
+}
+
+[data-theme="light"] *::-webkit-scrollbar-thumb:active {
+  background-color: rgba(39, 84, 255, 0.95);
+}
