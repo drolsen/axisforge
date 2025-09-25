@@ -301,90 +301,89 @@ export function bootstrap() {
     updateDirtyFlag();
   }
 
-    commands.registerCommand({
-      id: 'viewport.tool.select',
-      title: 'Select Tool',
-      menu: 'view',
-      order: 110,
-      shortcut: ['Q'],
-      run: () => {
-        gizmos.setToolMode('select');
-      },
-    });
-    commands.registerCommand({
-      id: 'viewport.tool.move',
-      title: 'Move Tool',
-      menu: 'view',
-      order: 120,
-      shortcut: ['W'],
-      run: () => {
-        gizmos.setToolMode('move');
-      },
-    });
-    commands.registerCommand({
-      id: 'viewport.tool.rotate',
-      title: 'Rotate Tool',
-      menu: 'view',
-      order: 130,
-      shortcut: ['E'],
-      run: () => {
-        gizmos.setToolMode('rotate');
-      },
-    });
-    commands.registerCommand({
-      id: 'viewport.tool.scale',
-      title: 'Scale Tool',
-      menu: 'view',
-      order: 140,
-      shortcut: ['R'],
-      run: () => {
-        gizmos.setToolMode('scale');
-      },
-    });
+  commands.registerCommand({
+    id: 'viewport.tool.select',
+    title: 'Select Tool',
+    menu: 'view',
+    order: 110,
+    shortcut: ['Q'],
+    run: () => {
+      gizmos.setToolMode('select');
+    },
+  });
+  commands.registerCommand({
+    id: 'viewport.tool.move',
+    title: 'Move Tool',
+    menu: 'view',
+    order: 120,
+    shortcut: ['W'],
+    run: () => {
+      gizmos.setToolMode('move');
+    },
+  });
+  commands.registerCommand({
+    id: 'viewport.tool.rotate',
+    title: 'Rotate Tool',
+    menu: 'view',
+    order: 130,
+    shortcut: ['E'],
+    run: () => {
+      gizmos.setToolMode('rotate');
+    },
+  });
+  commands.registerCommand({
+    id: 'viewport.tool.scale',
+    title: 'Scale Tool',
+    menu: 'view',
+    order: 140,
+    shortcut: ['R'],
+    run: () => {
+      gizmos.setToolMode('scale');
+    },
+  });
 
-    commands.registerCommand({
-      id: 'viewport.toggle-space',
-      title: 'Toggle Transform Space',
-      menu: 'view',
-      order: 150,
-      shortcut: ['T'],
-      run: () => {
-        selection.toggleTransformSpace();
-      },
-    });
+  commands.registerCommand({
+    id: 'viewport.toggle-space',
+    title: 'Toggle Transform Space',
+    menu: 'view',
+    order: 150,
+    shortcut: ['T'],
+    run: () => {
+      selection.toggleTransformSpace();
+    },
+  });
 
-    commands.registerCommand({
-      id: 'viewport.toggle-pivot',
-      title: 'Toggle Pivot Mode',
-      menu: 'view',
-      order: 160,
-      shortcut: ['Y'],
-      run: () => {
-        selection.togglePivotMode();
-      },
-    });
+  commands.registerCommand({
+    id: 'viewport.toggle-pivot',
+    title: 'Toggle Pivot Mode',
+    menu: 'view',
+    order: 160,
+    shortcut: ['Y'],
+    run: () => {
+      selection.togglePivotMode();
+    },
+  });
 
-    commands.registerCommand({
-      id: 'view.focus-selection',
-      title: 'Focus on Selection',
-      menu: 'view',
-      order: 170,
-      shortcut: ['F'],
-      run: focusSelection,
-    });
+  commands.registerCommand({
+    id: 'view.focus-selection',
+    title: 'Focus on Selection',
+    menu: 'view',
+    order: 170,
+    shortcut: ['F'],
+    run: focusSelection,
+  });
 
-    const syncFocusCommand = () => {
-      commands.setEnabled('view.focus-selection', selection.get().length > 0);
-    };
-    syncFocusCommand();
-    selection.Changed.Connect(syncFocusCommand);
+  const syncFocusCommand = () => {
+    commands.setEnabled('view.focus-selection', selection.get().length > 0);
+  };
+  syncFocusCommand();
+  selection.Changed.Connect(syncFocusCommand);
 
-    selection.TransformSettingsChanged.Connect(settings => {
-      const space = settings?.space === 'local' ? 'Local' : 'Global';
-      const pivot = settings?.pivot === 'center' ? 'Center' : 'Pivot';
-      shell._setStatus(`Transform: ${space} • ${pivot}`, 'info', 900);
-    });
-  }
+  selection.TransformSettingsChanged.Connect(settings => {
+    const space = settings?.space === 'local' ? 'Local' : 'Global';
+    const pivot = settings?.pivot === 'center' ? 'Center' : 'Pivot';
+    shell._setStatus(`Transform: ${space} • ${pivot}`, 'info', 900);
+  });
 
   const explorer = new Explorer(undo, selection);
   const properties = new Properties(undo, selection);
