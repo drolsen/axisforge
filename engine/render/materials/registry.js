@@ -3,11 +3,9 @@ import {
   allocateStandardPBRUniform,
   updateStandardPBRUniform,
   createStandardPBRLayout,
-  describeStandardPBRBindings,
-  createStandardPBRBindGroup,
-  STANDARD_PBR_BINDINGS
+  STANDARD_PBR_BINDINGS,
 } from './ubos.js';
-import { getDefaultAnisotropicSampler } from '../textures/sampler.js';
+import { ensureDefaultMaterialResources } from './defaults.js';
 
 class MaterialRegistry {
   constructor() {
@@ -15,8 +13,6 @@ class MaterialRegistry {
     this.layouts = new Map();
     this.materials = new Map();
     this.nextId = 1;
-    this.defaults = new Map();
-    this._defaultTextures = [];
     this._metadata = new Map();
   }
 
@@ -25,14 +21,12 @@ class MaterialRegistry {
       console.warn('[Materials] Reinitializing registry with a new device. Existing materials will be cleared.');
       this.materials.clear();
       this.nextId = 1;
-      this._disposeDefaults();
       this._metadata.clear();
     }
     if (!this.device || this.device !== device) {
       this.device = device;
       if (device) {
         this.layouts.set('StandardPBR', createStandardPBRLayout(device));
-        this._createDefaults();
       }
     }
   }
@@ -45,70 +39,44 @@ class MaterialRegistry {
 
   _buildStandardBinding(material, uniform) {
     const layout = this.layouts.get('StandardPBR');
-    const descriptor = describeStandardPBRBindings(material, uniform);
-    const bindGroup = createStandardPBRBindGroup(this.device, layout, descriptor, this.defaults);
-    return { layout, descriptor, bindGroup };
-  }
-
-  _disposeDefaults() {
-    for (const texture of this._defaultTextures) {
-      try {
-        texture.destroy();
-      } catch {
-        // Ignore
-      }
+    if (!layout) {
+      throw new Error('StandardPBR material layout not available.');
     }
-    this._defaultTextures = [];
-    this.defaults.clear();
-  }
 
-  _createSolidTexture(color, format) {
-    const data = new Uint8Array(color);
-    const texture = this.device.createTexture({
-      size: { width: 1, height: 1, depthOrArrayLayers: 1 },
-      format,
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+    const defaults = ensureDefaultMaterialResources(this.device);
+    const { albedo, metallicRoughness, normal, occlusion, emissive } = material.maps;
+
+    const entries = [
+      { binding: STANDARD_PBR_BINDINGS.UNIFORM, resource: { buffer: uniform.buffer } },
+      { binding: STANDARD_PBR_BINDINGS.ALBEDO_TEXTURE, resource: albedo.texture ?? defaults.baseColorView },
+      { binding: STANDARD_PBR_BINDINGS.ALBEDO_SAMPLER, resource: albedo.sampler ?? defaults.repeatSampler },
+      { binding: STANDARD_PBR_BINDINGS.METALLIC_ROUGHNESS_TEXTURE, resource: metallicRoughness.texture ?? defaults.metallicRoughView },
+      { binding: STANDARD_PBR_BINDINGS.METALLIC_ROUGHNESS_SAMPLER, resource: metallicRoughness.sampler ?? defaults.linearSampler },
+      { binding: STANDARD_PBR_BINDINGS.NORMAL_TEXTURE, resource: normal.texture ?? defaults.normalView },
+      { binding: STANDARD_PBR_BINDINGS.NORMAL_SAMPLER, resource: normal.sampler ?? defaults.linearSampler },
+      { binding: STANDARD_PBR_BINDINGS.OCCLUSION_TEXTURE, resource: occlusion.texture ?? defaults.occlusionView },
+      { binding: STANDARD_PBR_BINDINGS.OCCLUSION_SAMPLER, resource: occlusion.sampler ?? defaults.linearSampler },
+      { binding: STANDARD_PBR_BINDINGS.EMISSIVE_TEXTURE, resource: emissive.texture ?? defaults.emissiveView },
+      { binding: STANDARD_PBR_BINDINGS.EMISSIVE_SAMPLER, resource: emissive.sampler ?? defaults.linearSampler },
+    ];
+
+    if (entries.some(entry => entry.resource == null)) {
+      throw new Error('Missing resources for Standard PBR bind group.');
+    }
+
+    const bindGroup = this.device.createBindGroup({
+      layout,
+      entries,
     });
-    this.device.queue.writeTexture(
-      { texture },
-      data,
-      { bytesPerRow: 4 },
-      { width: 1, height: 1, depthOrArrayLayers: 1 },
-    );
-    this._defaultTextures.push(texture);
-    return texture.createView();
-  }
 
-  _createDefaults() {
-    this._disposeDefaults();
-    if (!this.device) {
-      return;
-    }
-    const whiteSRGB = this._createSolidTexture([255, 255, 255, 255], 'rgba8unorm-srgb');
-    const whiteLinear = this._createSolidTexture([255, 255, 255, 255], 'rgba8unorm');
-    const normalDefault = this._createSolidTexture([128, 128, 255, 255], 'rgba8unorm');
-    const blackSRGB = this._createSolidTexture([0, 0, 0, 255], 'rgba8unorm-srgb');
-    const sampler = getDefaultAnisotropicSampler(this.device);
-
-    const bindings = STANDARD_PBR_BINDINGS;
-    this.defaults.set(bindings.ALBEDO_TEXTURE, whiteSRGB);
-    this.defaults.set(bindings.METALLIC_ROUGHNESS_TEXTURE, whiteLinear);
-    this.defaults.set(bindings.NORMAL_TEXTURE, normalDefault);
-    this.defaults.set(bindings.OCCLUSION_TEXTURE, whiteLinear);
-    this.defaults.set(bindings.EMISSIVE_TEXTURE, blackSRGB);
-
-    this.defaults.set(bindings.ALBEDO_SAMPLER, sampler);
-    this.defaults.set(bindings.METALLIC_ROUGHNESS_SAMPLER, sampler);
-    this.defaults.set(bindings.NORMAL_SAMPLER, sampler);
-    this.defaults.set(bindings.OCCLUSION_SAMPLER, sampler);
-    this.defaults.set(bindings.EMISSIVE_SAMPLER, sampler);
+    return { layout, entries, bindGroup };
   }
 
   _logRecord(action, record) {
     const { material, binding } = record;
-    const bindingStates = binding.descriptor.entries.map(entry => ({
+    const bindingStates = binding.entries.map(entry => ({
       binding: entry.binding,
-      ready: entry.resource !== null
+      ready: entry.resource != null,
     }));
     console.info(`[Materials] ${action} ${material.type} #${record.id}`, {
       color: Array.from(material.color),
@@ -137,6 +105,8 @@ class MaterialRegistry {
   }
 
   createPBR(params = {}) {
+    this._ensureDevice();
+    ensureDefaultMaterialResources(this.device);
     return this.createStandard(params);
   }
 
