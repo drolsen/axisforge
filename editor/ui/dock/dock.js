@@ -47,6 +47,27 @@ function normalizeLayout(node) {
   return null;
 }
 
+function cloneLayout(node) {
+  if (!node) return null;
+  if (node.type === 'stack') {
+    return {
+      type: 'stack',
+      id: node.id,
+      tabs: node.tabs.slice(),
+      active: node.active,
+    };
+  }
+  if (node.type === 'split') {
+    return {
+      type: 'split',
+      direction: node.direction,
+      sizes: node.sizes.slice(),
+      children: node.children.map(child => cloneLayout(child)),
+    };
+  }
+  return null;
+}
+
 function pruneLayout(node, panes) {
   if (!node) return null;
   if (node.type === 'stack') {
@@ -337,9 +358,10 @@ export class DockArea {
   }
 
   initialize(defaultLayout) {
-    this.defaultLayout = normalizeLayout(pruneLayout(defaultLayout, this.panes)) ?? null;
+    const normalizedDefault = normalizeLayout(pruneLayout(defaultLayout, this.panes)) ?? null;
+    this.defaultLayout = normalizedDefault ? cloneLayout(normalizedDefault) : null;
     const stored = this._loadStoredLayout();
-    let layout = stored ?? this.defaultLayout;
+    let layout = stored ?? normalizedDefault;
     if (!layout) {
       const firstPane = Array.from(this.panes.keys())[0];
       layout = firstPane ? normalizeLayout(createStack(firstPane)) : null;
@@ -407,6 +429,45 @@ export class DockArea {
     if (rootNode) {
       this.container.appendChild(rootNode);
     }
+  }
+
+  resetToDefault() {
+    if (!this.defaultLayout) return;
+    this.layout = cloneLayout(this.defaultLayout);
+    this.render();
+    this.persistLayout();
+  }
+
+  isPaneVisible(paneId) {
+    return layoutContainsPane(this.layout, paneId);
+  }
+
+  showPane(paneId) {
+    if (!paneId) return;
+    this.updateLayout(layout => ensurePanePresence(layout, paneId));
+  }
+
+  hidePane(paneId) {
+    if (!paneId) return;
+    this.updateLayout(layout => {
+      const result = detachPane(layout, paneId);
+      return result.node ?? layout;
+    });
+  }
+
+  setPaneVisibility(paneId, visible) {
+    if (visible === this.isPaneVisible(paneId)) return;
+    if (visible) {
+      this.showPane(paneId);
+    } else {
+      this.hidePane(paneId);
+    }
+  }
+
+  togglePane(paneId) {
+    const nextVisible = !this.isPaneVisible(paneId);
+    this.setPaneVisibility(paneId, nextVisible);
+    return this.isPaneVisible(paneId);
   }
 
   _buildNode(node, path) {

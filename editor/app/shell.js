@@ -1,6 +1,9 @@
 
 import { DockArea, STORAGE_KEY as LAYOUT_STORAGE_KEY } from '../ui/dock/dock.js';
 import { startPlay, stopPlay } from '../services/playmode.js';
+import { CommandRegistry } from '../ui/commands.js';
+import { Menubar } from '../ui/menubar.js';
+import { HotkeyManager } from '../ui/hotkeys.js';
 
 const THEME_STORAGE_KEY = 'axisforge.theme';
 
@@ -83,13 +86,17 @@ export class EditorShell {
     this.root = document.createElement('div');
     this.root.className = 'editor-shell';
 
-    this.menubar = this._createMenubar();
+    this.commands = new CommandRegistry();
+    this._registerMenus();
+    this.menubar = new Menubar(this.commands);
+    this.hotkeys = new HotkeyManager(this.commands);
+
     this.toolbar = this._createToolbar();
     this.dockContainer = document.createElement('div');
     this.dockContainer.className = 'dock-area';
     this.statusbar = this._createStatusbar();
 
-    this.root.append(this.menubar, this.toolbar, this.dockContainer, this.statusbar);
+    this.root.append(this.menubar.element, this.toolbar, this.dockContainer, this.statusbar);
     this.mount.appendChild(this.root);
 
     this.dock = new DockArea(this.dockContainer, { storageKey: LAYOUT_STORAGE_KEY });
@@ -98,15 +105,21 @@ export class EditorShell {
       originalPersist();
       this._updateLayoutInfo();
       this._setStatus('Layout saved', 'positive', 1200);
+      this._syncViewCommands();
     };
+
+    this._registerShellCommands();
+
+    this._handleFullscreenChange = () => {
+      this._syncWindowCommands();
+    };
+    document.addEventListener('fullscreenchange', this._handleFullscreenChange);
 
     this._applyTheme();
     this._setStatus('Ready');
     this._updateThemeIndicator();
+    this._syncWindowCommands();
     this._syncPlayButtons();
-
-    this._keyHandler = this._handleKeyDown.bind(this);
-    window.addEventListener('keydown', this._keyHandler);
   }
 
   registerPane(pane) {
@@ -116,6 +129,7 @@ export class EditorShell {
   initializeLayout(layout = DEFAULT_LAYOUT) {
     this.dock.initialize(layout ?? DEFAULT_LAYOUT);
     this._updateLayoutInfo();
+    this._syncViewCommands();
   }
 
   activatePane(paneId) {
@@ -126,19 +140,244 @@ export class EditorShell {
     }
   }
 
-  _createMenubar() {
-    const menu = document.createElement('nav');
-    menu.className = 'menubar';
-    const entries = ['File', 'Edit', 'View', 'Run', 'Window', 'Help'];
-    for (const label of entries) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'menubar__item';
-      button.textContent = label;
-      button.title = `${label} menu (coming soon)`;
-      menu.appendChild(button);
+  _registerMenus() {
+    const menus = [
+      { id: 'file', title: 'File', order: 10 },
+      { id: 'edit', title: 'Edit', order: 20 },
+      { id: 'view', title: 'View', order: 30 },
+      { id: 'run', title: 'Run', order: 40 },
+      { id: 'window', title: 'Window', order: 50 },
+      { id: 'help', title: 'Help', order: 60 },
+    ];
+    for (const menu of menus) {
+      this.commands.registerMenu(menu);
     }
-    return menu;
+  }
+
+  _registerShellCommands() {
+    if (!this.commands) return;
+
+    // File menu
+    this.commands.registerCommand({
+      id: 'file.new',
+      title: 'New',
+      menu: 'file',
+      order: 10,
+      shortcut: ['Mod+N'],
+      allowInInputs: true,
+      run: () => {
+        this._setStatus('New project coming soon', 'warning', 1800);
+      },
+    });
+    this.commands.registerCommand({
+      id: 'file.open',
+      title: 'Open…',
+      menu: 'file',
+      order: 20,
+      shortcut: ['Mod+O'],
+      allowInInputs: true,
+      run: () => {
+        this._setStatus('Open project coming soon', 'warning', 1800);
+      },
+    });
+    this.commands.registerCommand({
+      id: 'file.save',
+      title: 'Save',
+      menu: 'file',
+      order: 30,
+      shortcut: ['Mod+S'],
+      allowInInputs: true,
+      run: () => {
+        this._dispatchAction('axisforge:scene-save', 'Scene save requested');
+      },
+    });
+    this.commands.registerCommand({
+      id: 'file.saveAs',
+      title: 'Save As…',
+      menu: 'file',
+      order: 40,
+      shortcut: ['Shift+Mod+S'],
+      allowInInputs: true,
+      run: () => {
+        this._setStatus('Save As coming soon', 'warning', 1800);
+      },
+    });
+    this.commands.registerCommand({
+      id: 'file.separator-exit',
+      menu: 'file',
+      type: 'separator',
+      order: 90,
+    });
+    this.commands.registerCommand({
+      id: 'file.exit',
+      title: 'Exit',
+      menu: 'file',
+      order: 100,
+      run: () => {
+        this._setStatus('Exit coming soon', 'warning', 1800);
+      },
+    });
+
+    // View menu
+    this.commands.registerCommand({
+      id: 'view.explorer',
+      title: 'Explorer',
+      menu: 'view',
+      order: 10,
+      type: 'command',
+      checked: true,
+      run: () => this._togglePanel('explorer', 'Explorer'),
+    });
+    this.commands.registerCommand({
+      id: 'view.properties',
+      title: 'Properties',
+      menu: 'view',
+      order: 20,
+      type: 'command',
+      checked: true,
+      run: () => this._togglePanel('properties', 'Properties'),
+    });
+    this.commands.registerCommand({
+      id: 'view.console',
+      title: 'Console',
+      menu: 'view',
+      order: 30,
+      type: 'command',
+      checked: true,
+      run: () => this._togglePanel('console', 'Console'),
+    });
+    this.commands.registerCommand({
+      id: 'view.assets',
+      title: 'Assets',
+      menu: 'view',
+      order: 40,
+      type: 'command',
+      checked: true,
+      run: () => this._togglePanel('assets', 'Assets'),
+    });
+    this.commands.registerCommand({
+      id: 'view.separator-reset',
+      menu: 'view',
+      type: 'separator',
+      order: 80,
+    });
+    this.commands.registerCommand({
+      id: 'view.resetLayout',
+      title: 'Reset Layout',
+      menu: 'view',
+      order: 90,
+      run: () => {
+        this.dock.resetToDefault();
+        this._setStatus('Layout reset', 'positive', 1600);
+        this._syncViewCommands();
+        this._updateLayoutInfo();
+      },
+    });
+
+    // Run menu
+    this.commands.registerCommand({
+      id: 'run.play',
+      title: 'Play',
+      menu: 'run',
+      order: 10,
+      shortcut: ['F5'],
+      allowInInputs: true,
+      run: () => this._handlePlayClick(),
+    });
+    this.commands.registerCommand({
+      id: 'run.stop',
+      title: 'Stop',
+      menu: 'run',
+      order: 20,
+      shortcut: ['Shift+F5'],
+      allowInInputs: true,
+      enabled: false,
+      run: () => this._handleStopClick(),
+    });
+
+    // Window menu
+    this.commands.registerCommand({
+      id: 'window.themeToggle',
+      title: 'Toggle Theme',
+      menu: 'window',
+      order: 10,
+      shortcut: ['F6'],
+      allowInInputs: true,
+      checked: this.theme === 'light',
+      run: () => this.toggleTheme(),
+    });
+    this.commands.registerCommand({
+      id: 'window.highContrast',
+      title: 'High Contrast',
+      menu: 'window',
+      order: 20,
+      checked: this.settingsActive,
+      run: () => this._toggleHighContrast(),
+    });
+    this.commands.registerCommand({
+      id: 'window.fullscreen',
+      title: 'Fullscreen',
+      menu: 'window',
+      order: 30,
+      checked: Boolean(document.fullscreenElement),
+      run: () => this._toggleFullscreen(),
+    });
+
+    // Help menu
+    this.commands.registerCommand({
+      id: 'help.about',
+      title: 'About Axis Forge…',
+      menu: 'help',
+      order: 10,
+      run: () => {
+        this._setStatus('Axis Forge Editor v0.1', 'positive', 2000);
+      },
+    });
+  }
+
+  _syncViewCommands() {
+    if (!this.commands || !this.dock) return;
+    const mapping = [
+      ['view.explorer', 'explorer'],
+      ['view.properties', 'properties'],
+      ['view.console', 'console'],
+      ['view.assets', 'assets'],
+    ];
+    for (const [commandId, paneId] of mapping) {
+      this.commands.setChecked(commandId, this.dock.isPaneVisible(paneId));
+    }
+  }
+
+  _syncWindowCommands() {
+    if (!this.commands) return;
+    this.commands.setChecked('window.themeToggle', this.theme === 'light');
+    this.commands.setChecked('window.highContrast', this.settingsActive);
+    this.commands.setChecked('window.fullscreen', Boolean(document.fullscreenElement));
+  }
+
+  _togglePanel(paneId, label) {
+    if (!this.dock) return;
+    const visible = this.dock.togglePane(paneId);
+    this._syncViewCommands();
+    this._updateLayoutInfo();
+    this._setStatus(`${label} ${visible ? 'shown' : 'hidden'}`, 'positive', 1600);
+  }
+
+  async _toggleFullscreen() {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+        this._setStatus('Fullscreen disabled', 'positive', 1600);
+      } else {
+        await document.documentElement.requestFullscreen();
+        this._setStatus('Fullscreen enabled', 'positive', 1600);
+      }
+    } catch (err) {
+      console.error('[Shell] Failed to toggle fullscreen', err);
+      this._setStatus('Fullscreen unavailable', 'error', 2400);
+    } finally {
+      this._syncWindowCommands();
+    }
   }
 
   _createToolbar() {
@@ -313,6 +552,10 @@ export class EditorShell {
     this.stopButton.disabled = !this.playing || this._pendingStop;
     this.playButton.classList.toggle('is-active', this.playing);
     this.stopButton.classList.toggle('is-active', this.playing);
+    if (this.commands) {
+      this.commands.setEnabled('run.play', !this.playing && !this._pendingPlay);
+      this.commands.setEnabled('run.stop', this.playing && !this._pendingStop);
+    }
   }
 
   _toggleHighContrast() {
@@ -321,13 +564,7 @@ export class EditorShell {
     this.settingsButton.classList.toggle('is-active', this.settingsActive);
     this.settingsButton.setAttribute('aria-pressed', String(this.settingsActive));
     this._setStatus(this.settingsActive ? 'High contrast enabled' : 'High contrast disabled', 'positive', 2000);
-  }
-
-  _handleKeyDown(event) {
-    if (event.key === 'F6') {
-      event.preventDefault();
-      this.toggleTheme();
-    }
+    this._syncWindowCommands();
   }
 
   toggleTheme() {
@@ -336,6 +573,7 @@ export class EditorShell {
     this._saveTheme();
     this._updateThemeIndicator();
     this._setStatus(`${this.theme.charAt(0).toUpperCase() + this.theme.slice(1)} theme`, 'positive', 1600);
+    this._syncWindowCommands();
   }
 
   _applyTheme() {

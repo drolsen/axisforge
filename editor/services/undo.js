@@ -30,6 +30,14 @@ export default class UndoService {
     }
   }
 
+  canUndo() {
+    return this.undoStack.length > 0;
+  }
+
+  canRedo() {
+    return this.redoStack.length > 0;
+  }
+
   // Command helpers
   createInstance(inst, parent) {
     return {
