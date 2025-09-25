@@ -30,125 +30,17 @@ function createExplorerPanel(explorer) {
   return container;
 }
 
-function createPropertiesPanel(properties, selection) {
+function createPropertiesPanel(properties) {
   const container = createPanel('Properties', 'Inspect and edit selection attributes.');
-  const section = document.createElement('div');
-  section.className = 'panel-section';
-  container.appendChild(section);
-
-  const nameField = document.createElement('div');
-  nameField.className = 'panel-field';
-  const nameLabel = document.createElement('span');
-  nameLabel.className = 'panel-field__label';
-  nameLabel.textContent = 'Name';
-  const nameInputWrap = document.createElement('div');
-  nameInputWrap.className = 'panel-field__input';
-  const nameInput = document.createElement('input');
-  nameInput.type = 'text';
-  nameInput.placeholder = 'No selection';
-  nameInput.disabled = true;
-  nameInputWrap.appendChild(nameInput);
-  nameField.append(nameLabel, nameInputWrap);
-  section.appendChild(nameField);
-
-  const vectorFields = {};
-  for (const prop of ['Position', 'Rotation', 'Scale']) {
-    const field = document.createElement('div');
-    field.className = 'panel-field';
-    const label = document.createElement('span');
-    label.className = 'panel-field__label';
-    label.textContent = prop;
-    const inputsWrap = document.createElement('div');
-    inputsWrap.className = 'panel-field__input';
-    const inputs = {};
-    for (const axis of ['x', 'y', 'z']) {
-      const input = document.createElement('input');
-      input.type = 'number';
-      input.step = '0.01';
-      input.disabled = true;
-      input.placeholder = axis.toUpperCase();
-      input.addEventListener('keydown', event => {
-        if (event.key === 'Enter') {
-          event.preventDefault();
-          input.blur();
-        }
-      });
-      input.addEventListener('change', () => {
-        properties.editVectorComponent(prop, axis, input.value);
-      });
-      inputs[axis] = input;
-      inputsWrap.appendChild(input);
-    }
-    field.append(label, inputsWrap);
-    section.appendChild(field);
-    vectorFields[prop] = inputs;
+  const element = properties.getElement();
+  if (element) {
+    container.appendChild(element);
+  } else {
+    const hint = document.createElement('p');
+    hint.className = 'hint';
+    hint.textContent = 'Properties are unavailable in this environment.';
+    container.appendChild(hint);
   }
-
-  nameInput.addEventListener('keydown', event => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      nameInput.blur();
-    }
-  });
-  nameInput.addEventListener('change', () => {
-    properties.editName(nameInput.value);
-  });
-
-  const status = document.createElement('div');
-  status.className = 'hint';
-  status.textContent = 'Select an object to edit its properties.';
-  container.appendChild(status);
-
-  properties.onChange(state => {
-    if (!state) {
-      nameInput.disabled = true;
-      nameInput.value = '';
-      nameInput.placeholder = 'No selection';
-      for (const inputs of Object.values(vectorFields)) {
-        for (const input of Object.values(inputs)) {
-          input.disabled = true;
-          input.value = '';
-          input.placeholder = input.placeholder ?? '';
-        }
-      }
-      status.textContent = 'Select an object to edit its properties.';
-      return;
-    }
-
-    nameInput.disabled = false;
-    if (state.Name.mixed) {
-      nameInput.value = '';
-      nameInput.placeholder = 'Multiple values';
-      nameInput.classList.add('is-mixed');
-    } else {
-      nameInput.value = state.Name.value ?? '';
-      nameInput.placeholder = '';
-      nameInput.classList.remove('is-mixed');
-    }
-
-    for (const prop of ['Position', 'Rotation', 'Scale']) {
-      const vector = state[prop];
-      const inputs = vectorFields[prop];
-      for (const axis of ['x', 'y', 'z']) {
-        const input = inputs[axis];
-        input.disabled = false;
-        const value = vector?.value?.[axis];
-        input.value = typeof value === 'number' ? value.toFixed(3) : '';
-        input.classList.toggle('is-mixed', Boolean(vector?.mixed?.[axis]));
-        if (vector?.mixed?.[axis]) {
-          input.placeholder = '—';
-        } else {
-          input.placeholder = axis.toUpperCase();
-        }
-      }
-    }
-
-    const count = selection.get().length;
-    status.textContent = count
-      ? `${count} object${count === 1 ? '' : 's'} selected`
-      : 'Select an object to edit its properties.';
-  });
-
   return container;
 }
 
@@ -306,7 +198,7 @@ export function bootstrap() {
   viewportPane.className = 'viewport-pane';
 
   const explorerPanel = createExplorerPanel(explorer);
-  const propertiesPanel = createPropertiesPanel(properties, selection);
+  const propertiesPanel = createPropertiesPanel(properties);
   const consolePanel = createConsolePanel(consolePane);
   const assetsPanel = createAssetsPanel(assetsPane, shell);
 
