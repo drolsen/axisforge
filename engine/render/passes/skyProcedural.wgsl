@@ -1,9 +1,9 @@
 struct SkyUniforms {
-  invViewProj : mat4x4<f32>;
-  cameraPos : vec4<f32>;
-  sunDirectionIntensity : vec4<f32>;
-  sunColor : vec4<f32>;
-  groundAlbedoTurbidity : vec4<f32>;
+  invViewProj : mat4x4<f32>,
+  cameraPos : vec4<f32>,
+  sunDirectionIntensity : vec4<f32>,
+  sunColor : vec4<f32>,
+  groundAlbedoTurbidity : vec4<f32>,
 };
 
 @group(0) @binding(0) var<uniform> sky : SkyUniforms;

@@ -168,7 +168,13 @@ fn computeShadowFactor(worldPos : vec3<f32>, normal : vec3<f32>, lightDir : vec3
 fn fs(input : VertexOutput) -> @location(0) vec4<f32> {
   let viewVector = scene.cameraPos.xyz - input.worldPos;
   let viewLength = length(viewVector);
-  let V = viewLength > 1e-5 ? viewVector / viewLength : vec3<f32>(0.0, 0.0, 1.0);
+  let V = undefined;
+  if (viewLength > 1e-5) {
+    V = viewVector / viewLength;
+  } else { 
+    V = vec3<f32>(0.0, 0.0, 1.0); 
+  }
+
   let baseSample = textureSample(baseColorTexture, baseColorSampler, input.uv);
   let baseColorSample = baseSample * material.baseColorFactor;
   let baseColor = baseColorSample.rgb;
@@ -194,10 +200,21 @@ fn fs(input : VertexOutput) -> @location(0) vec4<f32> {
   let N = applyNormalMap(input.normal, input.tangent, input.bitangent, input.uv);
   let lightVector = -scene.sunDirection.xyz;
   let lightLength = length(lightVector);
-  let L = lightLength > 1e-5 ? lightVector / lightLength : vec3<f32>(0.0, 1.0, 0.0);
+  let L = undefined;
+  if (lightLength > 1e-5) { 
+    L = lightVector / lightLength;
+  } else { 
+    L = vec3<f32>(0.0, 1.0, 0.0);
+  }
+
   let halfVector = V + L;
   let halfLength = length(halfVector);
-  let H = halfLength > 1e-5 ? halfVector / halfLength : N;
+  let H = undefined;
+  if (halfLength > 1e-5) {
+    H = halfVector / halfLength;
+  } else {
+    H = N;
+  }
 
   let NdotL = max(dot(N, L), 0.0);
   let NdotV = max(dot(N, V), 0.0);
