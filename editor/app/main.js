@@ -187,6 +187,103 @@ export function bootstrap() {
   const undo = new UndoService();
   const selection = new Selection();
 
+  const { commands } = shell;
+  if (commands) {
+    commands.registerCommand({
+      id: 'edit.undo',
+      title: 'Undo',
+      menu: 'edit',
+      order: 10,
+      shortcut: ['Mod+Z'],
+      enabled: undo.canUndo?.() ?? false,
+      run: () => {
+        undo.undo();
+        shell._setStatus('Undo', 'positive', 1200);
+      },
+    });
+    commands.registerCommand({
+      id: 'edit.redo',
+      title: 'Redo',
+      menu: 'edit',
+      order: 20,
+      shortcut: ['Shift+Mod+Z'],
+      enabled: undo.canRedo?.() ?? false,
+      run: () => {
+        undo.redo();
+        shell._setStatus('Redo', 'positive', 1200);
+      },
+    });
+    commands.registerCommand({
+      id: 'edit.separator-clipboard',
+      menu: 'edit',
+      type: 'separator',
+      order: 30,
+    });
+    commands.registerCommand({
+      id: 'edit.cut',
+      title: 'Cut',
+      menu: 'edit',
+      order: 40,
+      enabled: false,
+    });
+    commands.registerCommand({
+      id: 'edit.copy',
+      title: 'Copy',
+      menu: 'edit',
+      order: 50,
+      enabled: false,
+    });
+    commands.registerCommand({
+      id: 'edit.paste',
+      title: 'Paste',
+      menu: 'edit',
+      order: 60,
+      enabled: false,
+    });
+    commands.registerCommand({
+      id: 'edit.duplicate',
+      title: 'Duplicate',
+      menu: 'edit',
+      order: 70,
+      enabled: false,
+    });
+    commands.registerCommand({
+      id: 'edit.delete',
+      title: 'Delete',
+      menu: 'edit',
+      order: 80,
+      enabled: false,
+    });
+
+    const refreshUndoCommands = () => {
+      commands.setEnabled('edit.undo', undo.canUndo?.() ?? false);
+      commands.setEnabled('edit.redo', undo.canRedo?.() ?? false);
+    };
+
+    const originalExecute = undo.execute.bind(undo);
+    undo.execute = (...args) => {
+      const result = originalExecute(...args);
+      refreshUndoCommands();
+      return result;
+    };
+
+    const originalUndo = UndoService.prototype.undo.bind(undo);
+    undo.undo = (...args) => {
+      const result = originalUndo(...args);
+      refreshUndoCommands();
+      return result;
+    };
+
+    const originalRedo = UndoService.prototype.redo.bind(undo);
+    undo.redo = (...args) => {
+      const result = originalRedo(...args);
+      refreshUndoCommands();
+      return result;
+    };
+
+    refreshUndoCommands();
+  }
+
   const explorer = new Explorer(undo, selection);
   const properties = new Properties(undo, selection);
   const consolePane = new ConsolePane();

@@ -90,6 +90,14 @@ button, input, select, textarea {
   border-bottom: 1px solid var(--outline);
   font-size: 0.9rem;
   letter-spacing: 0.02em;
+  position: relative;
+  z-index: 20;
+}
+
+.menubar__menu {
+  position: relative;
+  display: flex;
+  align-items: stretch;
 }
 
 .menubar__item {
@@ -102,10 +110,91 @@ button, input, select, textarea {
   display: flex;
   align-items: center;
   transition: background var(--transition-fast), color var(--transition-fast);
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
 }
 
-.menubar__item:hover {
-  background: rgba(255, 255, 255, 0.06);
+.menubar__item:hover,
+.menubar__menu.is-open > .menubar__item {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.menubar__dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 12rem;
+  margin-top: 0.25rem;
+  padding: 0.35rem 0;
+  background: rgba(24, 24, 26, 0.96);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.5rem;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  display: none;
+}
+
+.menubar__menu.is-open > .menubar__dropdown {
+  display: block;
+}
+
+.menubar__command {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  width: 100%;
+  padding: 0.35rem 0.75rem;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.menubar__command:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.menubar__command[disabled] {
+  opacity: 0.45;
+  cursor: default;
+  pointer-events: none;
+}
+
+.menubar__command-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.menubar__command-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  font-size: 0.75rem;
+  color: var(--accent, #6fc1ff);
+}
+
+.menubar__command-shortcut {
+  opacity: 0.65;
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+}
+
+.menubar__separator {
+  height: 1px;
+  margin: 0.25rem 0;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.menubar__command.is-checked {
+  color: var(--accent, #6fc1ff);
 }
 
 .toolbar {
