@@ -349,6 +349,26 @@ export default class Explorer {
     }
   }
 
+  getAllNodes() {
+    const result = [];
+    const seen = new Set();
+    const visit = node => {
+      if (!node || seen.has(node)) return;
+      seen.add(node);
+      result.push(node);
+      const children = this.tree.getChildren(node) || [];
+      for (const child of children) {
+        visit(child);
+      }
+    };
+    if (Array.isArray(this.services)) {
+      for (const service of this.services) {
+        visit(service);
+      }
+    }
+    return result;
+  }
+
   click(inst, { additive = false, toggle = false } = {}) {
     if (!inst) {
       this.selection.clear();
@@ -370,6 +390,33 @@ export default class Explorer {
 
     if (this.hasDOM) this.tree.setSelection(this.selection.get());
     return this.selection.get();
+  }
+
+  focusNode(node, { openContextMenu = false } = {}) {
+    if (!node) return false;
+    this.selection.set([node]);
+    if (this.hasDOM) {
+      this.tree.expandPathTo(node);
+      this.tree.setSelection([node]);
+      this.tree.scrollTo(node);
+      if (openContextMenu) {
+        window.requestAnimationFrame(() => {
+          const id = this.tree.getId(node);
+          const row = this.tree.viewport?.querySelector?.(`.virtual-tree__row[data-node-id="${id}"]`);
+          if (!row) return;
+          const rect = row.getBoundingClientRect();
+          const position = {
+            x: rect.left + rect.width / 2,
+            y: rect.top + rect.height / 2,
+          };
+          const items = this._buildContextMenu(node);
+          if (items?.length) {
+            showContextMenu(position, items);
+          }
+        });
+      }
+    }
+    return true;
   }
 
   isSelected(inst) {
