@@ -136,6 +136,10 @@ class MaterialRegistry {
     return id;
   }
 
+  createPBR(params = {}) {
+    return this.createStandard(params);
+  }
+
   get(id) {
     return this.materials.get(id) || null;
   }

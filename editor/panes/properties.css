@@ -1,8 +1,8 @@
 .properties-pane {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  padding: 0.5rem 0;
+  gap: var(--pad-1);
+  padding: 0;
   min-height: 0;
 }
 
@@ -185,11 +185,13 @@
 
 .property-editor--vector {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.3rem;
+  grid-template-columns: repeat(3, minmax(64px, 1fr));
+  gap: 4px;
 }
 
 .property-editor__vector-field {
+  min-width: 64px;
+  padding: 4px 6px;
   text-align: right;
 }
 

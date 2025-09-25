@@ -11,43 +11,58 @@ import TransformGizmos from '../components/gizmos.js';
 import { EditorShell, DEFAULT_LAYOUT } from './shell.js';
 import { createViewportOverlay } from '../ui/viewportOverlay.js';
 import CommandPalette from '../ui/palette.js';
+import { createBaseplate, createBlockPart } from '../services/primitives.js';
 
 function createPanel(title, description) {
   const container = document.createElement('div');
-  container.className = 'panel-content';
-  const heading = document.createElement('h2');
-  heading.textContent = title;
-  container.appendChild(heading);
+  container.className = 'pane';
+
+  const header = document.createElement('div');
+  header.className = 'pane__header';
+
+  const titleEl = document.createElement('div');
+  titleEl.className = 'pane__title';
+  titleEl.textContent = title;
+  header.appendChild(titleEl);
+
   if (description) {
-    const subtitle = document.createElement('p');
+    const subtitle = document.createElement('div');
+    subtitle.className = 'pane__subtitle';
     subtitle.textContent = description;
-    container.appendChild(subtitle);
+    header.appendChild(subtitle);
   }
-  return container;
+
+  container.appendChild(header);
+
+  const body = document.createElement('div');
+  body.className = 'pane__body';
+  container.appendChild(body);
+
+  return { element: container, body };
 }
 
 function createExplorerPanel(explorer) {
-  const container = createPanel('Explorer', 'Manage the scene hierarchy and quick actions.');
-  container.appendChild(explorer.getElement());
-  return container;
+  const panel = createPanel('Explorer', 'Manage the scene hierarchy and quick actions.');
+  panel.body.appendChild(explorer.getElement());
+  return panel.element;
 }
 
 function createPropertiesPanel(properties) {
-  const container = createPanel('Properties', 'Inspect and edit selection attributes.');
+  const panel = createPanel('Properties', 'Inspect and edit selection attributes.');
   const element = properties.getElement();
   if (element) {
-    container.appendChild(element);
+    panel.body.appendChild(element);
   } else {
     const hint = document.createElement('p');
     hint.className = 'hint';
     hint.textContent = 'Properties are unavailable in this environment.';
-    container.appendChild(hint);
+    panel.body.appendChild(hint);
   }
-  return container;
+  return panel.element;
 }
 
 function createConsolePanel(consolePane) {
-  const container = createPanel('Console', 'Captured log output from the editor runtime.');
+  const panel = createPanel('Console', 'Captured log output from the editor runtime.');
   const actions = document.createElement('div');
   actions.className = 'panel-actions';
   const clearButton = document.createElement('button');
@@ -57,11 +72,11 @@ function createConsolePanel(consolePane) {
     render(consolePane.getEntries());
   });
   actions.appendChild(clearButton);
-  container.appendChild(actions);
+  panel.body.appendChild(actions);
 
   const logList = document.createElement('div');
   logList.className = 'panel-log';
-  container.appendChild(logList);
+  panel.body.appendChild(logList);
 
   const render = entries => {
     logList.textContent = '';
@@ -87,11 +102,11 @@ function createConsolePanel(consolePane) {
   render(consolePane.getEntries());
   consolePane.onLog((_, entries) => render(entries));
 
-  return container;
+  return panel.element;
 }
 
 function createAssetsPanel(assetsPane, shell) {
-  const container = createPanel('Assets', 'Project content imported into the editor.');
+  const panel = createPanel('Assets', 'Project content imported into the editor.');
   const actions = document.createElement('div');
   actions.className = 'panel-actions';
   const refreshButton = document.createElement('button');
@@ -100,11 +115,11 @@ function createAssetsPanel(assetsPane, shell) {
   const importButton = document.createElement('button');
   importButton.textContent = 'Import…';
   actions.appendChild(importButton);
-  container.appendChild(actions);
+  panel.body.appendChild(actions);
 
   const list = document.createElement('div');
   list.className = 'panel-list';
-  container.appendChild(list);
+  panel.body.appendChild(list);
 
   const renderAssets = assets => {
     list.textContent = '';
@@ -178,10 +193,10 @@ function createAssetsPanel(assetsPane, shell) {
 
   loadAssets();
 
-  return { element: container, refresh: loadAssets, requestImport };
+  return { element: panel.element, refresh: loadAssets, requestImport };
 }
 
-export function bootstrap() {
+export async function bootstrap() {
   const undo = new UndoService();
   const selection = new Selection();
   const shell = new EditorShell({ selection, undo });
@@ -386,7 +401,13 @@ export function bootstrap() {
     shell._setStatus(`Transform: ${space} • ${pivot}`, 'info', 900);
   });
 
-  const explorer = new Explorer(undo, selection);
+  const explorer = new Explorer(undo, selection, {
+    createPart: parent =>
+      createBlockPart({
+        parent: null,
+        position: { x: 0, y: 0.5, z: 0 },
+      }),
+  });
   const properties = new Properties(undo, selection);
   const consolePane = new ConsolePane();
   const assetsPane = new AssetsPane(undefined, { floatingUI: false });
@@ -415,7 +436,12 @@ export function bootstrap() {
 
   shell.initializeLayout(DEFAULT_LAYOUT);
 
-  initViewport({ mount: viewportPane });
+  await initViewport({ mount: viewportPane });
+  try {
+    createBaseplate();
+  } catch (err) {
+    console.error('[Editor] Failed to create baseplate', err);
+  }
   createViewportOverlay({
     mount: viewportPane,
     gizmos,
@@ -450,4 +476,6 @@ export function bootstrap() {
   checkForUpdates();
 }
 
-bootstrap();
+bootstrap().catch(err => {
+  console.error('[Editor] Bootstrap failed', err);
+});
